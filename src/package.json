@@ -95,6 +95,11 @@
       "import": "./_esm/linea/index.js",
       "default": "./_cjs/linea/index.js"
     },
+    "./eip8141": {
+      "types": "./_types/eip8141/index.d.ts",
+      "import": "./_esm/eip8141/index.js",
+      "default": "./_cjs/eip8141/index.js"
+    },
     "./node": {
       "types": "./_types/node/index.d.ts",
       "import": "./_esm/node/index.js",
@@ -176,6 +181,9 @@
       ],
       "experimental/erc7895": [
         "./_types/experimental/erc7895/index.d.ts"
+      ],
+      "eip8141": [
+        "./_types/eip8141/index.d.ts"
       ],
       "node": [
         "./_types/node/index.d.ts"
