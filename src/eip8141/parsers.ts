@@ -1,5 +1,6 @@
 import { InvalidSerializedTransactionError } from '../errors/transaction.js'
-import type { Address, Hex } from '../types/misc.js'
+import type { Address } from 'abitype'
+import type { Hex } from '../types/misc.js'
 import { isHex } from '../utils/data/isHex.js'
 import { sliceHex } from '../utils/data/slice.js'
 import { fromRlp } from '../utils/encoding/fromRlp.js'

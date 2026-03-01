@@ -1,4 +1,4 @@
-import type { Address, Hex } from 'abitype'
+import type { Hex } from '../../types/misc.js'
 import { getChainId } from '../../actions/public/getChainId.js'
 import { getTransactionCount } from '../../actions/public/getTransactionCount.js'
 import { estimateFeesPerGas } from '../../actions/public/estimateFeesPerGas.js'

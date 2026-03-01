@@ -1,4 +1,5 @@
-import type { Address, Hex } from '../../types/misc.js'
+import type { Address } from 'abitype'
+import type { Hex } from '../../types/misc.js'
 import type { Log } from '../../types/log.js'
 import type { RpcLog } from '../../types/rpc.js'
 

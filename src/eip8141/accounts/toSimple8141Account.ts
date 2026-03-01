@@ -1,4 +1,4 @@
-import type { Address, Hex } from 'abitype'
+import type { Address } from 'abitype'
 import type { LocalAccount } from '../../accounts/types.js'
 import { encodeFunctionData } from '../../utils/abi/encodeFunctionData.js'
 import { parseSignature } from '../../utils/signature/parseSignature.js'

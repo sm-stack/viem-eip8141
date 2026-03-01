@@ -62,8 +62,8 @@ export function toFrameAccount(
     type: 'eip8141',
     signFrameTransaction,
     encodeCalls,
-    getDeployFrame,
-  }
+    ...(getDeployFrame ? { getDeployFrame } : {}),
+  } as FrameAccount
 }
 
 // ---------------------------------------------------------------------------
