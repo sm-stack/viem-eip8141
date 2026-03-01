@@ -86,39 +86,79 @@ export async function prepareFrameTransaction<
     const deployFrame = await account.getDeployFrame?.()
     const prefixFrames: Frame[] = deployFrame ? [deployFrame] : []
 
-    const paymasterVerifySkeleton: Frame[] = paymaster
-      ? [{ mode: 'verify', target: paymaster.address, gasLimit: 200_000n, data: '0x' }]
-      : []
-
     const postOpFrame = paymaster?.getPostOpFrame?.()
     const postOpFrames: Frame[] = postOpFrame ? [postOpFrame] : []
 
-    const skeletonFrames = [
-      ...prefixFrames,
-      { mode: 'verify' as const, target: null, gasLimit: 200_000n, data: '0x' as Hex },
-      ...paymasterVerifySkeleton,
-      ...senderFrames,
-      ...postOpFrames,
-    ]
-
-    const skeletonTx: TransactionSerializableFrame = {
+    const baseTxFields = {
       chainId,
       nonce,
       sender: account.address,
-      frames: skeletonFrames,
       maxPriorityFeePerGas,
       maxFeePerGas,
       maxFeePerBlobGas,
       blobVersionedHashes,
-      type: 'frame',
+      type: 'frame' as const,
     }
 
-    const sigHash = computeSigHash(skeletonTx)
-    const accountVerifyFrames = await account.signFrameTransaction({ sigHash })
-
-    const paymasterVerifyFrames: Frame[] = paymaster
-      ? [await paymaster.signFrameTransaction({ sigHash })]
+    // ── Phase 1: Probe ─────────────────────────────────────────────
+    // Use placeholder VERIFY frames to get a preliminary sigHash,
+    // then call signFrameTransaction to discover actual gasLimits
+    // and frame structure (account may return multiple VERIFY frames).
+    const placeholderAccountVerify: Frame[] = [
+      { mode: 'verify', target: null, gasLimit: 0n, data: '0x' as Hex },
+    ]
+    const placeholderPaymasterVerify: Frame[] = paymaster
+      ? [{ mode: 'verify', target: paymaster.address, gasLimit: 0n, data: '0x' as Hex }]
       : []
+
+    const preliminarySigHash = computeSigHash({
+      ...baseTxFields,
+      frames: [
+        ...prefixFrames,
+        ...placeholderAccountVerify,
+        ...placeholderPaymasterVerify,
+        ...senderFrames,
+        ...postOpFrames,
+      ],
+    })
+
+    const probeAccountVerify = await account.signFrameTransaction({
+      sigHash: preliminarySigHash,
+    })
+    const probePaymasterVerify: Frame[] = paymaster
+      ? [await paymaster.signFrameTransaction({ sigHash: preliminarySigHash })]
+      : []
+
+    // ── Phase 2: Correct ───────────────────────────────────────────
+    // Rebuild skeleton with actual gasLimits/targets from probe.
+    // computeSigHash zeros VERIFY data, so only gasLimit/target matter.
+    const correctedSkeleton = [
+      ...prefixFrames,
+      ...probeAccountVerify.map((f) => ({ ...f, data: '0x' as Hex })),
+      ...probePaymasterVerify.map((f) => ({ ...f, data: '0x' as Hex })),
+      ...senderFrames,
+      ...postOpFrames,
+    ]
+
+    const sigHash = computeSigHash({
+      ...baseTxFields,
+      frames: correctedSkeleton,
+    })
+
+    // ── Phase 3: Optimize ──────────────────────────────────────────
+    // If corrected sigHash differs from probe, re-sign; else reuse.
+    let accountVerifyFrames: Frame[]
+    let paymasterVerifyFrames: Frame[]
+
+    if (sigHash !== preliminarySigHash) {
+      accountVerifyFrames = await account.signFrameTransaction({ sigHash })
+      paymasterVerifyFrames = paymaster
+        ? [await paymaster.signFrameTransaction({ sigHash })]
+        : []
+    } else {
+      accountVerifyFrames = probeAccountVerify
+      paymasterVerifyFrames = probePaymasterVerify
+    }
 
     allFrames = [
       ...prefixFrames,

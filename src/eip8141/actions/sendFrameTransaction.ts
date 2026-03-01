@@ -137,56 +137,84 @@ export async function sendFrameTransaction<
     // Auto-build mode: account encodes calls into SENDER frames
     const senderFrames = account.encodeCalls(calls)
 
-    // Build a skeleton tx with empty VERIFY data for sigHash computation
-    const skeletonVerifyFrames: Frame[] = [
-      { mode: 'verify', target: null, gasLimit: 200_000n, data: '0x' },
-    ]
-
     // Optional: account deploy frame at the front
     const deployFrame = await account.getDeployFrame?.()
     const prefixFrames: Frame[] = deployFrame ? [deployFrame] : []
-
-    // Optional: paymaster VERIFY frame
-    const paymasterVerifySkeleton: Frame[] = paymaster
-      ? [{ mode: 'verify', target: paymaster.address, gasLimit: 200_000n, data: '0x' }]
-      : []
 
     // Optional: paymaster postOp DEFAULT frame
     const postOpFrame = paymaster?.getPostOpFrame?.()
     const postOpFrames: Frame[] = postOpFrame ? [postOpFrame] : []
 
-    // Skeleton frame order:
-    // [deploy?] [verify(sender)] [verify(paymaster)?] [sender...] [postOp?]
-    const skeletonFrames = [
-      ...prefixFrames,
-      ...skeletonVerifyFrames,
-      ...paymasterVerifySkeleton,
-      ...senderFrames,
-      ...postOpFrames,
-    ]
-
-    const skeletonTx: TransactionSerializableFrame = {
+    const baseTxFields = {
       chainId,
       nonce,
       sender: account.address,
-      frames: skeletonFrames,
       maxPriorityFeePerGas,
       maxFeePerGas,
       maxFeePerBlobGas,
       blobVersionedHashes,
-      type: 'frame',
+      type: 'frame' as const,
     }
 
-    // Compute sigHash (VERIFY data is automatically zeroed by computeSigHash)
-    const sigHash = computeSigHash(skeletonTx)
-
-    // Account produces VERIFY frame(s) with actual signature data
-    const accountVerifyFrames = await account.signFrameTransaction({ sigHash })
-
-    // Paymaster produces VERIFY frame with actual data
-    const paymasterVerifyFrames: Frame[] = paymaster
-      ? [await paymaster.signFrameTransaction({ sigHash })]
+    // ── Phase 1: Probe ─────────────────────────────────────────────
+    // Use placeholder VERIFY frames to get a preliminary sigHash,
+    // then call signFrameTransaction to discover actual gasLimits
+    // and frame structure (account may return multiple VERIFY frames).
+    const placeholderAccountVerify: Frame[] = [
+      { mode: 'verify', target: null, gasLimit: 0n, data: '0x' },
+    ]
+    const placeholderPaymasterVerify: Frame[] = paymaster
+      ? [{ mode: 'verify', target: paymaster.address, gasLimit: 0n, data: '0x' }]
       : []
+
+    const preliminarySigHash = computeSigHash({
+      ...baseTxFields,
+      frames: [
+        ...prefixFrames,
+        ...placeholderAccountVerify,
+        ...placeholderPaymasterVerify,
+        ...senderFrames,
+        ...postOpFrames,
+      ],
+    })
+
+    const probeAccountVerify = await account.signFrameTransaction({
+      sigHash: preliminarySigHash,
+    })
+    const probePaymasterVerify: Frame[] = paymaster
+      ? [await paymaster.signFrameTransaction({ sigHash: preliminarySigHash })]
+      : []
+
+    // ── Phase 2: Correct ───────────────────────────────────────────
+    // Rebuild skeleton with actual gasLimits/targets from probe.
+    // computeSigHash zeros VERIFY data, so only gasLimit/target matter.
+    const correctedSkeleton = [
+      ...prefixFrames,
+      ...probeAccountVerify.map((f) => ({ ...f, data: '0x' as Hex })),
+      ...probePaymasterVerify.map((f) => ({ ...f, data: '0x' as Hex })),
+      ...senderFrames,
+      ...postOpFrames,
+    ]
+
+    const sigHash = computeSigHash({
+      ...baseTxFields,
+      frames: correctedSkeleton,
+    })
+
+    // ── Phase 3: Optimize ──────────────────────────────────────────
+    // If corrected sigHash differs from probe, re-sign; else reuse.
+    let accountVerifyFrames: Frame[]
+    let paymasterVerifyFrames: Frame[]
+
+    if (sigHash !== preliminarySigHash) {
+      accountVerifyFrames = await account.signFrameTransaction({ sigHash })
+      paymasterVerifyFrames = paymaster
+        ? [await paymaster.signFrameTransaction({ sigHash })]
+        : []
+    } else {
+      accountVerifyFrames = probeAccountVerify
+      paymasterVerifyFrames = probePaymasterVerify
+    }
 
     // Final frame order:
     // [deploy?] [accountVerify...] [paymasterVerify?] [sender...] [postOp?]
