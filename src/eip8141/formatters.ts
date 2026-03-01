@@ -1,5 +1,6 @@
 import type { ChainFormatters } from '../types/chain.js'
 import { hexToBigInt } from '../utils/encoding/fromHex.js'
+import { formatLog } from '../utils/formatters/log.js'
 import { defineTransaction } from '../utils/formatters/transaction.js'
 import { defineTransactionReceipt } from '../utils/formatters/transactionReceipt.js'
 import type { Frame, FrameReceipt, RpcFrame, RpcFrameReceipt } from './types/frame.js'
@@ -29,14 +30,7 @@ function formatFrameReceipt(rpcFr: RpcFrameReceipt): FrameReceipt {
   return {
     status: rpcFr.status,
     gasUsed: hexToBigInt(rpcFr.gasUsed),
-    logs: rpcFr.logs?.map((log: any) => ({
-      ...log,
-      blockNumber: log.blockNumber ? hexToBigInt(log.blockNumber) : null,
-      logIndex: log.logIndex ? Number(log.logIndex) : null,
-      transactionIndex: log.transactionIndex
-        ? Number(log.transactionIndex)
-        : null,
-    })) ?? [],
+    logs: rpcFr.logs?.map((log) => formatLog(log)) ?? [],
   }
 }
 
