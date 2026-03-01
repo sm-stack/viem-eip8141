@@ -67,20 +67,20 @@ export function serializeFrameTransaction(
 
   // Encode each frame as [mode, target, gasLimit, data]
   const serializedFrames: Hex[][] = frames.map((frame) => [
-    toHex(frameModeToNumber[frame.mode]),
+    toMinimalHex(frameModeToNumber[frame.mode]),
     frame.target ?? '0x',
-    toHex(frame.gasLimit),
+    toMinimalHex(frame.gasLimit),
     frame.data,
   ])
 
   const serializedTransaction: (Hex | Hex[] | Hex[][])[] = [
-    toHex(chainId),
-    nonce ? toHex(nonce) : '0x',
+    toMinimalHex(chainId),
+    toMinimalHex(nonce),
     sender,
     serializedFrames,
-    maxPriorityFeePerGas ? toHex(maxPriorityFeePerGas) : '0x',
-    maxFeePerGas ? toHex(maxFeePerGas) : '0x',
-    maxFeePerBlobGas ? toHex(maxFeePerBlobGas) : '0x',
+    toMinimalHex(maxPriorityFeePerGas ?? 0),
+    toMinimalHex(maxFeePerGas ?? 0),
+    toMinimalHex(maxFeePerBlobGas ?? 0),
     blobVersionedHashes ?? [],
   ]
 
@@ -93,6 +93,12 @@ export function serializeFrameTransaction(
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
+
+/** RLP-canonical integer encoding: 0 → '0x' (empty bytes), nonzero → toHex. */
+function toMinimalHex(value: number | bigint): Hex {
+  if (value === 0 || value === 0n) return '0x'
+  return toHex(value)
+}
 
 function assertFrameTransaction(transaction: TransactionSerializableFrame) {
   const { sender, frames } = transaction
