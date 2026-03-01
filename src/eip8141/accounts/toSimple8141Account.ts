@@ -132,19 +132,26 @@ export function toSimple8141Account(
 
     encodeCalls(calls: FrameCall[]) {
       return calls.map((call) => {
-        // Each call is wrapped in execute(address target, uint256 value, bytes data)
-        const data = encodeFunctionData({
-          abi: executeAbi,
-          functionName: 'execute',
-          args: [call.to, call.value ?? 0n, call.data ?? '0x'],
-        })
-
-        // SENDER frame targets null (= tx.sender = this account)
+        if (call.value && call.value > 0n) {
+          // Value transfer requires execute() wrapper since Frame has no value field
+          const data = encodeFunctionData({
+            abi: executeAbi,
+            functionName: 'execute',
+            args: [call.to, call.value, call.data ?? '0x'],
+          })
+          return {
+            mode: 'sender' as const,
+            target: null,
+            gasLimit: senderGasLimit,
+            data,
+          } satisfies Frame
+        }
+        // No value: raw SENDER frame targeting contract directly (gas-efficient)
         return {
           mode: 'sender' as const,
-          target: null,
+          target: call.to,
           gasLimit: senderGasLimit,
-          data,
+          data: call.data ?? '0x',
         } satisfies Frame
       })
     },
