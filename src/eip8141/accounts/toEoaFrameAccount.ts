@@ -127,7 +127,7 @@ export function toEoaFrameAccount(
       } else {
         const serializedSig = await parameters.owner.sign!({ hash })
         const sig = parseSignature(serializedSig)
-        const v = sig.v ? Number(sig.v) : sig.yParity + 27
+        const v = sig.v ? Number(sig.v) - 27 : sig.yParity
         data = concatHex([header, numberToHex(v, { size: 1 }), sig.r, sig.s])
       }
 
