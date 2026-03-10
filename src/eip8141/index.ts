@@ -11,6 +11,11 @@ export {
   type ToSimple8141AccountReturnType,
   toSimple8141Account,
 } from './accounts/toSimple8141Account.js'
+export {
+  type ToEoaFrameAccountParameters,
+  type ToEoaFrameAccountReturnType,
+  toEoaFrameAccount,
+} from './accounts/toEoaFrameAccount.js'
 
 // ── Actions ──────────────────────────────────────────────────────────────────
 export {
