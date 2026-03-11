@@ -31,7 +31,7 @@ export type PrepareFrameTransactionParameters = {
   blobVersionedHashes?: Hex[] | undefined
 
   // EOA options (only used when account is a LocalAccount)
-  /** Validation scope (0=execution, 2=both). @default 2 */
+  /** Validation scope (0=execution, 2=both). @default 0 when paymaster is set, 2 otherwise */
   scope?: 0 | 2 | undefined
   /** VERIFY frame gas limit. @default 200_000n */
   verifyGasLimit?: bigint | undefined
@@ -105,7 +105,7 @@ export async function prepareFrameTransaction<
 
     if (parameters.account.type === 'local') {
       const {
-        scope = 2,
+        scope = paymaster ? 0 : 2,
         verifyGasLimit = 200_000n,
         senderGasLimit = 200_000n,
       } = parameters
