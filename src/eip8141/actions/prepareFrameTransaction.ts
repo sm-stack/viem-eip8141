@@ -1,3 +1,4 @@
+import type { LocalAccount } from '../../accounts/types.js'
 import type { Hex } from '../../types/misc.js'
 import { getChainId } from '../../actions/public/getChainId.js'
 import { getTransactionCount } from '../../actions/public/getTransactionCount.js'
@@ -6,6 +7,7 @@ import type { Client } from '../../clients/createClient.js'
 import type { Transport } from '../../clients/transports/createTransport.js'
 import type { Chain } from '../../types/chain.js'
 import { getAction } from '../../utils/getAction.js'
+import { toEoaFrameAccount } from '../accounts/toEoaFrameAccount.js'
 import { computeSigHash } from '../utils/computeSigHash.js'
 import type { Frame } from '../types/frame.js'
 import type { FrameAccount, FrameCall, FramePaymaster } from '../types/account.js'
@@ -16,7 +18,8 @@ import type { TransactionSerializableFrame } from '../types/transaction.js'
 // ---------------------------------------------------------------------------
 
 export type PrepareFrameTransactionParameters = {
-  account: FrameAccount
+  /** Frame account or LocalAccount (EOA). LocalAccount is auto-wrapped via toEoaFrameAccount. */
+  account: FrameAccount | LocalAccount
   calls?: FrameCall[] | undefined
   frames?: Frame[] | undefined
   paymaster?: FramePaymaster | undefined
@@ -26,6 +29,14 @@ export type PrepareFrameTransactionParameters = {
   maxFeePerGas?: bigint | undefined
   maxFeePerBlobGas?: bigint | undefined
   blobVersionedHashes?: Hex[] | undefined
+
+  // EOA auto-wrap options (only used when account is a LocalAccount)
+  /** Validation scope (0=execution, 2=both). @default 2 */
+  scope?: 0 | 2 | undefined
+  /** VERIFY frame gas limit. @default 200_000n */
+  verifyGasLimit?: bigint | undefined
+  /** SENDER frame gas limit. @default 200_000n */
+  senderGasLimit?: bigint | undefined
 }
 
 export type PrepareFrameTransactionReturnType = TransactionSerializableFrame
@@ -42,13 +53,23 @@ export async function prepareFrameTransaction<
   parameters: PrepareFrameTransactionParameters,
 ): Promise<PrepareFrameTransactionReturnType> {
   const {
-    account,
     calls,
     frames: rawFrames,
     paymaster,
     maxFeePerBlobGas,
     blobVersionedHashes,
   } = parameters
+
+  // Auto-wrap LocalAccount → FrameAccount (EOA first-class path)
+  const account: FrameAccount =
+    parameters.account.type === 'local'
+      ? toEoaFrameAccount({
+          owner: parameters.account as LocalAccount,
+          scope: parameters.scope,
+          verifyGasLimit: parameters.verifyGasLimit,
+          senderGasLimit: parameters.senderGasLimit,
+        })
+      : (parameters.account as FrameAccount)
 
   const chainId =
     parameters.chainId ??
