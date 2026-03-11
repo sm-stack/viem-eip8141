@@ -2,13 +2,11 @@ import type { Address } from 'abitype'
 import type { LocalAccount } from '../../accounts/types.js'
 import type { Hex } from '../../types/misc.js'
 import { concatHex } from '../../utils/data/concat.js'
-import { toHex } from '../../utils/encoding/toHex.js'
 import { numberToHex } from '../../utils/encoding/toHex.js'
-import { toRlp } from '../../utils/encoding/toRlp.js'
 import { keccak256 } from '../../utils/hash/keccak256.js'
-import { parseSignature } from '../../utils/signature/parseSignature.js'
 import type { Frame } from '../types/frame.js'
 import type { FrameAccount, FrameCall } from '../types/account.js'
+import { encodeEoaCalls, signEoaVerify } from '../utils/eoa.js'
 import { toFrameAccount } from './toFrameAccount.js'
 
 // ---------------------------------------------------------------------------
@@ -55,8 +53,9 @@ export type ToEoaFrameAccountReturnType = FrameAccount
 /**
  * Creates a frame account for EOAs using EIP-8141 default code.
  *
- * Supports both ECDSA (secp256k1) and P256 (secp256r1) signatures.
- * All calls are batched into a single SENDER frame via RLP encoding.
+ * For ECDSA EOAs, prefer passing `LocalAccount` directly to
+ * `sendFrameTransaction` — this factory is mainly useful for P256
+ * or when you need an explicit `FrameAccount` object.
  *
  * @example ECDSA
  * ```ts
@@ -78,14 +77,6 @@ export type ToEoaFrameAccountReturnType = FrameAccount
  *   publicKey: { x: '0x...', y: '0x...' },
  * })
  * ```
- *
- * @example Paymaster (scope=0, execution only)
- * ```ts
- * const account = toEoaFrameAccount({
- *   owner: privateKeyToAccount('0x...'),
- *   scope: 0,
- * })
- * ```
  */
 export function toEoaFrameAccount(
   parameters: ToEoaFrameAccountParameters,
@@ -98,70 +89,45 @@ export function toEoaFrameAccount(
 
   const isP256 = parameters.signatureType === 'p256'
 
-  // Derive address
-  const address: Address = isP256
-    ? (`0x${keccak256(concatHex([parameters.publicKey.x, parameters.publicKey.y])).slice(26)}` as Address)
-    : parameters.owner.address
+  // ── ECDSA: reuse shared EOA utilities ──────────────────────────
+  if (!isP256) {
+    return toFrameAccount({
+      address: parameters.owner.address,
+      signFrameTransaction: ({ sigHash }) =>
+        signEoaVerify(parameters.owner, sigHash, {
+          scope,
+          gasLimit: verifyGasLimit,
+        }),
+      encodeCalls: (calls: FrameCall[]) =>
+        encodeEoaCalls(calls, senderGasLimit),
+    })
+  }
+
+  // ── P256: custom signing logic ─────────────────────────────────
+  const address = `0x${keccak256(concatHex([parameters.publicKey.x, parameters.publicKey.y])).slice(26)}` as Address
 
   return toFrameAccount({
     address,
 
     async signFrameTransaction({ sigHash }) {
-      // 1. Build 2-byte header (= data_without_signature)
-      //    byte 0: (scope << 4) | 0x1  — high nibble = APPROVE scope, low nibble = VERIFY mode
-      //    byte 1: signature type       — 0x00 = ECDSA, 0x01 = P256
       const header = concatHex([
         numberToHex((scope << 4) | 0x1, { size: 1 }),
-        isP256 ? '0x01' : '0x00',
+        '0x01', // P256
       ])
 
-      // 2. hash = keccak256(sigHash || data_without_signature)
       const hash = keccak256(concatHex([sigHash, header]))
-
-      // 3. Sign and build frame data
-      let data: Hex
-
-      if (isP256) {
-        const { r, s } = await parameters.sign(hash)
-        data = concatHex([header, r, s, parameters.publicKey.x, parameters.publicKey.y])
-      } else {
-        const serializedSig = await parameters.owner.sign!({ hash })
-        const sig = parseSignature(serializedSig)
-        const v = sig.v ? Number(sig.v) - 27 : sig.yParity
-        data = concatHex([header, numberToHex(v, { size: 1 }), sig.r, sig.s])
-      }
+      const { r, s } = await parameters.sign(hash)
 
       return [
         {
           mode: 'verify' as const,
           target: null,
           gasLimit: verifyGasLimit,
-          data,
+          data: concatHex([header, r, s, parameters.publicKey.x, parameters.publicKey.y]),
         },
       ] satisfies Frame[]
     },
 
-    encodeCalls(calls: FrameCall[]) {
-      // All calls batched into a single SENDER frame via RLP
-      // byte 0: 0x02 (scope=0, mode=SENDER)
-      // bytes 1+: RLP([[target, value, data], ...])
-      const callsRlp = toRlp(
-        calls.map((call) => [
-          call.to,
-          call.value && call.value > 0n ? toHex(call.value) : '0x',
-          call.data ?? '0x',
-        ]),
-      )
-      const data = concatHex(['0x02', callsRlp])
-
-      return [
-        {
-          mode: 'sender' as const,
-          target: null,
-          gasLimit: senderGasLimit,
-          data,
-        },
-      ] satisfies Frame[]
-    },
+    encodeCalls: (calls: FrameCall[]) => encodeEoaCalls(calls, senderGasLimit),
   })
 }

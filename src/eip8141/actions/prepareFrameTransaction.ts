@@ -7,8 +7,8 @@ import type { Client } from '../../clients/createClient.js'
 import type { Transport } from '../../clients/transports/createTransport.js'
 import type { Chain } from '../../types/chain.js'
 import { getAction } from '../../utils/getAction.js'
-import { toEoaFrameAccount } from '../accounts/toEoaFrameAccount.js'
 import { computeSigHash } from '../utils/computeSigHash.js'
+import { encodeEoaCalls, signEoaVerify } from '../utils/eoa.js'
 import type { Frame } from '../types/frame.js'
 import type { FrameAccount, FrameCall, FramePaymaster } from '../types/account.js'
 import type { TransactionSerializableFrame } from '../types/transaction.js'
@@ -18,7 +18,7 @@ import type { TransactionSerializableFrame } from '../types/transaction.js'
 // ---------------------------------------------------------------------------
 
 export type PrepareFrameTransactionParameters = {
-  /** Frame account or LocalAccount (EOA). LocalAccount is auto-wrapped via toEoaFrameAccount. */
+  /** Frame account or LocalAccount (EOA). */
   account: FrameAccount | LocalAccount
   calls?: FrameCall[] | undefined
   frames?: Frame[] | undefined
@@ -30,7 +30,7 @@ export type PrepareFrameTransactionParameters = {
   maxFeePerBlobGas?: bigint | undefined
   blobVersionedHashes?: Hex[] | undefined
 
-  // EOA auto-wrap options (only used when account is a LocalAccount)
+  // EOA options (only used when account is a LocalAccount)
   /** Validation scope (0=execution, 2=both). @default 2 */
   scope?: 0 | 2 | undefined
   /** VERIFY frame gas limit. @default 200_000n */
@@ -44,7 +44,10 @@ export type PrepareFrameTransactionReturnType = TransactionSerializableFrame
 /**
  * Prepares an EIP-8141 frame transaction without sending it.
  *
- * Useful for inspection, debugging, or manual serialization.
+ * For EOA accounts (`account.type === 'local'`), frame building is handled
+ * directly by this action using the EOA default code protocol.
+ * For custom frame accounts (`account.type === 'eip8141'`), frame building
+ * is delegated to the account's methods.
  */
 export async function prepareFrameTransaction<
   chain extends Chain | undefined,
@@ -60,16 +63,7 @@ export async function prepareFrameTransaction<
     blobVersionedHashes,
   } = parameters
 
-  // Auto-wrap LocalAccount → FrameAccount (EOA first-class path)
-  const account: FrameAccount =
-    parameters.account.type === 'local'
-      ? toEoaFrameAccount({
-          owner: parameters.account as LocalAccount,
-          scope: parameters.scope,
-          verifyGasLimit: parameters.verifyGasLimit,
-          senderGasLimit: parameters.senderGasLimit,
-        })
-      : (parameters.account as FrameAccount)
+  const address = parameters.account.address
 
   const chainId =
     parameters.chainId ??
@@ -82,7 +76,7 @@ export async function prepareFrameTransaction<
       client,
       getTransactionCount,
       'getTransactionCount',
-    )({ address: account.address, blockTag: 'pending' }))
+    )({ address, blockTag: 'pending' }))
 
   let { maxFeePerGas, maxPriorityFeePerGas } = parameters
 
@@ -102,9 +96,33 @@ export async function prepareFrameTransaction<
   if (rawFrames) {
     allFrames = rawFrames
   } else if (calls) {
-    const senderFrames = account.encodeCalls(calls)
+    // ── Account type branching ────────────────────────────────────
+    // EOA: action builds frames directly (first-class, viem pattern)
+    // FrameAccount: delegates to account methods (extension pattern)
+    let senderFrames: Frame[]
+    let signVerify: (sigHash: Hex) => Promise<Frame[]>
+    let deployFrame: Frame | undefined
 
-    const deployFrame = await account.getDeployFrame?.()
+    if (parameters.account.type === 'local') {
+      const {
+        scope = 2,
+        verifyGasLimit = 200_000n,
+        senderGasLimit = 200_000n,
+      } = parameters
+      senderFrames = encodeEoaCalls(calls, senderGasLimit)
+      signVerify = (sigHash) =>
+        signEoaVerify(parameters.account as LocalAccount, sigHash, {
+          scope,
+          gasLimit: verifyGasLimit,
+        })
+      deployFrame = undefined
+    } else {
+      const account = parameters.account as FrameAccount
+      senderFrames = account.encodeCalls(calls)
+      signVerify = (sigHash) => account.signFrameTransaction({ sigHash })
+      deployFrame = await account.getDeployFrame?.()
+    }
+
     const prefixFrames: Frame[] = deployFrame ? [deployFrame] : []
 
     const postOpFrame = paymaster?.getPostOpFrame?.()
@@ -113,7 +131,7 @@ export async function prepareFrameTransaction<
     const baseTxFields = {
       chainId,
       nonce,
-      sender: account.address,
+      sender: address,
       maxPriorityFeePerGas,
       maxFeePerGas,
       maxFeePerBlobGas,
@@ -123,8 +141,7 @@ export async function prepareFrameTransaction<
 
     // ── Phase 1: Probe ─────────────────────────────────────────────
     // Use placeholder VERIFY frames to get a preliminary sigHash,
-    // then call signFrameTransaction to discover actual gasLimits
-    // and frame structure (account may return multiple VERIFY frames).
+    // then sign to discover actual gasLimits and frame structure.
     const placeholderAccountVerify: Frame[] = [
       { mode: 'verify', target: null, gasLimit: 0n, data: '0x' as Hex },
     ]
@@ -143,9 +160,7 @@ export async function prepareFrameTransaction<
       ],
     })
 
-    const probeAccountVerify = await account.signFrameTransaction({
-      sigHash: preliminarySigHash,
-    })
+    const probeAccountVerify = await signVerify(preliminarySigHash)
     const probePaymasterVerify: Frame[] = paymaster
       ? [await paymaster.signFrameTransaction({ sigHash: preliminarySigHash })]
       : []
@@ -172,7 +187,7 @@ export async function prepareFrameTransaction<
     let paymasterVerifyFrames: Frame[]
 
     if (sigHash !== preliminarySigHash) {
-      accountVerifyFrames = await account.signFrameTransaction({ sigHash })
+      accountVerifyFrames = await signVerify(sigHash)
       paymasterVerifyFrames = paymaster
         ? [await paymaster.signFrameTransaction({ sigHash })]
         : []
@@ -197,7 +212,7 @@ export async function prepareFrameTransaction<
   return {
     chainId,
     nonce,
-    sender: account.address,
+    sender: address,
     frames: allFrames,
     maxPriorityFeePerGas,
     maxFeePerGas,

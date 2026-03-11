@@ -87,4 +87,5 @@ export type {
 
 // ── Utils ────────────────────────────────────────────────────────────────────
 export { computeSigHash } from './utils/computeSigHash.js'
+export { encodeEoaCalls, signEoaVerify } from './utils/eoa.js'
 export { isFrameTransaction } from './utils/isFrameTransaction.js'
