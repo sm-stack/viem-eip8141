@@ -15,6 +15,8 @@ import type {
 } from './types/transaction.js'
 import { isFrameTransaction } from './utils/isFrameTransaction.js'
 
+const expiryVerifierAddress = '0x0000000000000000000000000000000000008141'
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -44,33 +46,56 @@ export const serializers = {
 /**
  * Serializes an EIP-8141 frame transaction to its RLP-encoded form.
  *
- * Format: `0x06 || rlp([chainId, nonce, sender, frames, maxPriorityFeePerGas,
+ * Format: `0x06 || rlp([chainId, nonce, sender, frames, signatures, maxPriorityFeePerGas,
  *          maxFeePerGas, maxFeePerBlobGas, blobVersionedHashes])`
  *
- * Each frame is encoded as: `[mode, target, gasLimit, data]`
+ * Each frame is encoded as: `[mode, flags, target, gasLimit, value, data]`
  */
 export function serializeFrameTransaction(
   transaction: TransactionSerializableFrame,
 ): TransactionSerializedFrame {
-  assertFrameTransaction(transaction)
+  assertFrameTransaction(transaction, {})
+  return encodeFrameTransaction(transaction)
+}
+
+/** @internal Used only to encode the canonical empty-message sig-hash payload. */
+export function serializeFrameTransactionForSigHash(
+  transaction: TransactionSerializableFrame,
+): TransactionSerializedFrame {
+  assertFrameTransaction(transaction, { allowEmptySignatures: true })
+  return encodeFrameTransaction(transaction)
+}
+
+function encodeFrameTransaction(
+  transaction: TransactionSerializableFrame,
+): TransactionSerializedFrame {
 
   const {
     chainId,
     nonce,
     sender,
     frames,
+    signatures,
     maxPriorityFeePerGas,
     maxFeePerGas,
     maxFeePerBlobGas,
     blobVersionedHashes,
   } = transaction
 
-  // Encode each frame as [mode, target, gasLimit, data]
   const serializedFrames: Hex[][] = frames.map((frame) => [
     toMinimalHex(frameModeToNumber[frame.mode]),
+    toMinimalHex(frame.flags ?? 0),
     frame.target ?? '0x',
     toMinimalHex(frame.gasLimit),
+    toMinimalHex(frame.value ?? 0n),
     frame.data,
+  ])
+
+  const serializedSignatures: Hex[][] = signatures.map((signature) => [
+    toMinimalHex(signature.scheme),
+    signature.signer,
+    signature.msg,
+    signature.signature,
   ])
 
   const serializedTransaction: (Hex | Hex[] | Hex[][])[] = [
@@ -78,6 +103,7 @@ export function serializeFrameTransaction(
     toMinimalHex(nonce),
     sender,
     serializedFrames,
+    serializedSignatures,
     toMinimalHex(maxPriorityFeePerGas ?? 0),
     toMinimalHex(maxFeePerGas ?? 0),
     toMinimalHex(maxFeePerBlobGas ?? 0),
@@ -100,16 +126,58 @@ function toMinimalHex(value: number | bigint): Hex {
   return toHex(value)
 }
 
-function assertFrameTransaction(transaction: TransactionSerializableFrame) {
-  const { sender, frames } = transaction
-  if (!isAddress(sender))
-    throw new InvalidAddressError({ address: sender })
+function assertFrameTransaction(
+  transaction: TransactionSerializableFrame,
+  options: { allowEmptySignatures?: boolean },
+) {
+  const { sender, frames, signatures } = transaction
+  if (!isAddress(sender)) throw new InvalidAddressError({ address: sender })
   if (!frames || frames.length === 0)
     throw new Error('Frame transaction must have at least one frame.')
-  if (frames.length > 1000)
-    throw new Error('Frame transaction exceeds MAX_FRAMES (1000).')
-  for (const frame of frames) {
+  if (frames.length > 64)
+    throw new Error('Frame transaction exceeds MAX_FRAMES (64).')
+  let expiryFrames = 0
+  for (const [index, frame] of frames.entries()) {
     if (frame.target && !isAddress(frame.target))
       throw new InvalidAddressError({ address: frame.target })
+    const flags = frame.flags ?? 0
+    const value = frame.value ?? 0n
+    if (!Number.isInteger(flags) || flags < 0 || flags >= 8)
+      throw new Error(`Frame ${index} has invalid flags ${frame.flags}.`)
+    if (frame.mode !== 'sender' && value !== 0n)
+      throw new Error(`Frame ${index} has nonzero value outside SENDER mode.`)
+    if ((flags & 4) !== 0 && index === frames.length - 1)
+      throw new Error(
+        `Frame ${index} has atomic batch flag without a following frame.`,
+      )
+    if (frame.gasLimit < 0n || frame.gasLimit > 0xffff_ffff_ffff_ffffn)
+      throw new Error(`Frame ${index} gasLimit does not fit uint64.`)
+    if (value < 0n || value > (1n << 256n) - 1n)
+      throw new Error(`Frame ${index} value does not fit uint256.`)
+    const resolvedTarget = (frame.target ?? sender).toLowerCase()
+    if (frame.mode === 'verify' && resolvedTarget === expiryVerifierAddress) {
+      expiryFrames++
+      if (expiryFrames > 1)
+        throw new Error('Frame transaction has multiple expiry verifier frames.')
+      if (flags !== 0 || value !== 0n || frame.data.length !== 18)
+        throw new Error(`Frame ${index} has an invalid expiry verifier payload.`)
+    }
+  }
+  for (const [index, signature] of signatures.entries()) {
+    if (!isAddress(signature.signer))
+      throw new InvalidAddressError({ address: signature.signer })
+    const expectedLength = signature.scheme === 0 ? 65 : 128
+    if (signature.scheme !== 0 && signature.scheme !== 1)
+      throw new Error(`Signature ${index} has unsupported scheme.`)
+    if (
+      !(options.allowEmptySignatures && signature.signature === '0x') &&
+      (signature.signature.length - 2) / 2 !== expectedLength
+    )
+      throw new Error(`Signature ${index} has invalid length.`)
+    const messageLength = (signature.msg.length - 2) / 2
+    if (messageLength !== 0 && messageLength !== 32)
+      throw new Error(`Signature ${index} message has invalid length.`)
+    if (messageLength === 32 && /^0x0+$/.test(signature.msg))
+      throw new Error(`Signature ${index} has an explicit zero message.`)
   }
 }

@@ -2,11 +2,14 @@ import type { Address } from 'abitype'
 import type { LocalAccount } from '../../accounts/types.js'
 import type { Hex } from '../../types/misc.js'
 import { concatHex } from '../../utils/data/concat.js'
-import { numberToHex } from '../../utils/encoding/toHex.js'
 import { keccak256 } from '../../utils/hash/keccak256.js'
-import type { Frame } from '../types/frame.js'
 import type { FrameAccount, FrameCall } from '../types/account.js'
-import { encodeEoaCalls, signEoaVerify } from '../utils/eoa.js'
+import type { Frame } from '../types/frame.js'
+import {
+  encodeEoaCalls,
+  makeEoaSignaturePlaceholder,
+  signEoaTransaction,
+} from '../utils/eoa.js'
 import { toFrameAccount } from './toFrameAccount.js'
 
 // ---------------------------------------------------------------------------
@@ -22,11 +25,11 @@ export type ToEoaFrameAccountParameters = {
 
   /**
    * Validation scope:
-   * - `0` = EXECUTION only (use when paymaster pays)
-   * - `2` = BOTH (execution + payment)
-   * @default 2
+   * - `1` = EXECUTION only (use when paymaster pays)
+   * - `3` = EXECUTION + PAYMENT
+   * @default 3
    */
-  scope?: 0 | 2 | undefined
+  scope?: 1 | 3 | undefined
 } & (
   | {
       /** Use ECDSA (secp256k1) signing. This is the default. */
@@ -84,7 +87,7 @@ export function toEoaFrameAccount(
   const {
     verifyGasLimit = 200_000n,
     senderGasLimit = 200_000n,
-    scope = 2,
+    scope = 3,
   } = parameters
 
   const isP256 = parameters.signatureType === 'p256'
@@ -93,39 +96,71 @@ export function toEoaFrameAccount(
   if (!isP256) {
     return toFrameAccount({
       address: parameters.owner.address,
-      signFrameTransaction: ({ sigHash }) =>
-        signEoaVerify(parameters.owner, sigHash, {
-          scope,
+      signFrameTransaction: async () => [
+        {
+          mode: 'verify',
+          flags: scope,
+          target: null,
           gasLimit: verifyGasLimit,
-        }),
+          value: 0n,
+          data: '0x',
+        },
+      ],
+      getTransactionSignaturePlaceholders: () => [
+        makeEoaSignaturePlaceholder(parameters.owner.address),
+      ],
+      signTransactionSignatures: async ({ sigHash }) => [
+        await signEoaTransaction(parameters.owner, sigHash),
+      ],
       encodeCalls: (calls: FrameCall[]) =>
         encodeEoaCalls(calls, senderGasLimit),
     })
   }
 
   // ── P256: custom signing logic ─────────────────────────────────
-  const address = `0x${keccak256(concatHex([parameters.publicKey.x, parameters.publicKey.y])).slice(26)}` as Address
+  const address =
+    `0x${keccak256(concatHex([parameters.publicKey.x, parameters.publicKey.y])).slice(26)}` as Address
 
   return toFrameAccount({
     address,
 
-    async signFrameTransaction({ sigHash }) {
-      const header = concatHex([
-        numberToHex((scope << 4) | 0x1, { size: 1 }),
-        '0x01', // P256
-      ])
-
-      const hash = keccak256(concatHex([sigHash, header]))
-      const { r, s } = await parameters.sign(hash)
-
+    async signFrameTransaction() {
       return [
         {
           mode: 'verify' as const,
+          flags: scope,
           target: null,
           gasLimit: verifyGasLimit,
-          data: concatHex([header, r, s, parameters.publicKey.x, parameters.publicKey.y]),
+          value: 0n,
+          data: '0x',
         },
       ] satisfies Frame[]
+    },
+
+    getTransactionSignaturePlaceholders: () => [
+      {
+        scheme: 1,
+        signer: address,
+        msg: '0x',
+        signature: `0x${'00'.repeat(128)}`,
+      },
+    ],
+
+    async signTransactionSignatures({ sigHash }) {
+      const { r, s } = await parameters.sign(sigHash)
+      return [
+        {
+          scheme: 1,
+          signer: address,
+          msg: '0x',
+          signature: concatHex([
+            r,
+            s,
+            parameters.publicKey.x,
+            parameters.publicKey.y,
+          ]),
+        },
+      ]
     },
 
     encodeCalls: (calls: FrameCall[]) => encodeEoaCalls(calls, senderGasLimit),

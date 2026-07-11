@@ -1,6 +1,6 @@
 import type { Address } from 'abitype'
-import type { Hex } from '../../types/misc.js'
 import type { Log } from '../../types/log.js'
+import type { Hex } from '../../types/misc.js'
 import type { RpcLog } from '../../types/rpc.js'
 
 // ---------------------------------------------------------------------------
@@ -28,10 +28,14 @@ export const numberToFrameMode = {
 export type Frame = {
   /** Frame execution mode. */
   mode: FrameMode
+  /** Approval scope bits (0-1) and atomic-batch continuation bit (2). */
+  flags?: number | undefined
   /** Call target address. `null` means the frame targets `tx.sender`. */
   target: Address | null
   /** Gas limit allocated to this frame. */
   gasLimit: bigint
+  /** Native value transferred by a SENDER frame. */
+  value?: bigint | undefined
   /** Calldata for the frame. */
   data: Hex
 }
@@ -42,8 +46,10 @@ export type Frame = {
 
 export type RpcFrame = {
   mode: Hex
+  flags: Hex
   target: Address | Hex
   gasLimit: Hex
+  value: Hex
   data: Hex
 }
 
@@ -51,9 +57,11 @@ export type RpcFrame = {
 // Frame Receipt
 // ---------------------------------------------------------------------------
 
+export type FrameReceiptStatus = '0x0' | '0x1' | '0x3'
+
 export type FrameReceipt = {
-  /** Frame execution status hex (0x0=fail, 0x1=success, 0x2=approved_execution, 0x3=approved_payment, 0x4=approved_both). */
-  status: Hex
+  /** Frame execution status (0x0=failed, 0x1=successful, 0x3=skipped). */
+  status: FrameReceiptStatus
   /** Gas used by this frame. */
   gasUsed: bigint
   /** Logs emitted during this frame. */
@@ -61,7 +69,7 @@ export type FrameReceipt = {
 }
 
 export type RpcFrameReceipt = {
-  status: Hex
+  status: FrameReceiptStatus
   gasUsed: Hex
   logs: RpcLog[]
 }

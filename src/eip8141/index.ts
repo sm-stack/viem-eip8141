@@ -1,5 +1,10 @@
 // biome-ignore lint/performance/noBarrelFile: entrypoint module
 
+export {
+  type ToEoaFrameAccountParameters,
+  type ToEoaFrameAccountReturnType,
+  toEoaFrameAccount,
+} from './accounts/toEoaFrameAccount.js'
 // ── Accounts ─────────────────────────────────────────────────────────────────
 export {
   type ToFrameAccountParameters,
@@ -12,22 +17,16 @@ export {
   toSimple8141Account,
 } from './accounts/toSimple8141Account.js'
 export {
-  type ToEoaFrameAccountParameters,
-  type ToEoaFrameAccountReturnType,
-  toEoaFrameAccount,
-} from './accounts/toEoaFrameAccount.js'
-
+  type PrepareFrameTransactionParameters,
+  type PrepareFrameTransactionReturnType,
+  prepareFrameTransaction,
+} from './actions/prepareFrameTransaction.js'
 // ── Actions ──────────────────────────────────────────────────────────────────
 export {
   type SendFrameTransactionParameters,
   type SendFrameTransactionReturnType,
   sendFrameTransaction,
 } from './actions/sendFrameTransaction.js'
-export {
-  type PrepareFrameTransactionParameters,
-  type PrepareFrameTransactionReturnType,
-  prepareFrameTransaction,
-} from './actions/prepareFrameTransaction.js'
 
 // ── Chain Config ─────────────────────────────────────────────────────────────
 export { chainConfig } from './chainConfig.js'
@@ -37,8 +36,8 @@ export * from './chains.js'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 export {
-  FRAME_TX_TYPE,
   ENTRY_POINT_ADDRESS,
+  FRAME_TX_TYPE,
   FrameMode,
 } from './constants.js'
 
@@ -56,36 +55,56 @@ export {
 
 // ── Serializers ──────────────────────────────────────────────────────────────
 export {
+  serializeFrameTransaction,
   serializers,
   serializeTransaction,
-  serializeFrameTransaction,
 } from './serializers.js'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export type {
   FrameAccount,
-  FramePaymaster,
   FrameCall,
+  FramePaymaster,
 } from './types/account.js'
 export type {
   Frame,
   FrameMode as FrameModeType,
-  RpcFrame,
   FrameReceipt,
+  FrameReceiptStatus,
+  RpcFrame,
   RpcFrameReceipt,
 } from './types/frame.js'
 export type {
-  TransactionSerializableFrame,
-  TransactionSerializedFrame,
+  Eip8141FrameTransaction,
+  Eip8141RpcFrameTransaction,
+  Eip8141RpcTransactionReceipt,
+  Eip8141TransactionReceipt,
   Eip8141TransactionSerializable,
   Eip8141TransactionSerialized,
-  Eip8141RpcFrameTransaction,
-  Eip8141FrameTransaction,
-  Eip8141TransactionReceipt,
-  Eip8141RpcTransactionReceipt,
+  RpcTxSignature,
+  TransactionSerializableFrame,
+  TransactionSerializedFrame,
+  TxSignature,
 } from './types/transaction.js'
 
 // ── Utils ────────────────────────────────────────────────────────────────────
 export { computeSigHash } from './utils/computeSigHash.js'
-export { encodeEoaCalls, signEoaVerify } from './utils/eoa.js'
+export {
+  encodeEoaCalls,
+  makeEoaSignaturePlaceholder,
+  signEoaTransaction,
+} from './utils/eoa.js'
+export {
+  frameExpiryVerifierAddress,
+  frameFlagAtomicBatch,
+  makeExpiryFrame,
+  withAtomicBatch,
+} from './utils/frames.js'
+export {
+  frameTransactionBaseGas,
+  frameTransactionPerFrameGas,
+  getFrameTransactionGas,
+  p256SignatureGas,
+  secp256k1SignatureGas,
+} from './utils/gas.js'
 export { isFrameTransaction } from './utils/isFrameTransaction.js'

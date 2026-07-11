@@ -1,16 +1,17 @@
-import { InvalidSerializedTransactionError } from '../errors/transaction.js'
 import type { Address } from 'abitype'
+import { InvalidSerializedTransactionError } from '../errors/transaction.js'
 import type { Hex } from '../types/misc.js'
 import { isHex } from '../utils/data/isHex.js'
 import { sliceHex } from '../utils/data/slice.js'
-import { fromRlp } from '../utils/encoding/fromRlp.js'
 import { hexToBigInt, hexToNumber } from '../utils/encoding/fromHex.js'
+import { fromRlp } from '../utils/encoding/fromRlp.js'
 import {
   type ParseTransactionReturnType as ParseTransactionReturnType_,
   parseTransaction as parseTransaction_,
 } from '../utils/transaction/parseTransaction.js'
-import { numberToFrameMode } from './types/frame.js'
 import type { Frame } from './types/frame.js'
+import { numberToFrameMode } from './types/frame.js'
+import { serializeFrameTransaction } from './serializers.js'
 import type {
   Eip8141TransactionSerialized,
   TransactionSerializableFrame,
@@ -25,9 +26,7 @@ export type ParseTransactionReturnType<
 
 export function parseTransaction<
   serialized extends Eip8141TransactionSerialized,
->(
-  serializedTransaction: serialized,
-): ParseTransactionReturnType<serialized> {
+>(serializedTransaction: serialized): ParseTransactionReturnType<serialized> {
   const serializedType = sliceHex(serializedTransaction, 0, 1)
 
   if (serializedType === '0x06')
@@ -47,7 +46,7 @@ function parseFrameTransaction(
   const payload = `0x${serializedTransaction.slice(4)}` as Hex
   const transactionArray = fromRlp(payload, 'hex')
 
-  if (!Array.isArray(transactionArray) || transactionArray.length !== 8)
+  if (!Array.isArray(transactionArray) || transactionArray.length !== 9)
     throw new InvalidSerializedTransactionError({
       attributes: {},
       serializedTransaction,
@@ -59,36 +58,78 @@ function parseFrameTransaction(
     nonce,
     sender,
     rawFrames,
+    rawSignatures,
     maxPriorityFeePerGas,
     maxFeePerGas,
     maxFeePerBlobGas,
     blobVersionedHashes,
-  ] = transactionArray as [Hex, Hex, Hex, Hex[][], Hex, Hex, Hex, Hex[]]
+  ] = transactionArray as [
+    Hex,
+    Hex,
+    Hex,
+    Hex[][],
+    Hex[][],
+    Hex,
+    Hex,
+    Hex,
+    Hex[],
+  ]
 
   // Parse frames
-  const frames: Frame[] = (rawFrames as unknown as Hex[][]).map(
-    (rawFrame) => {
-      const [mode, target, gasLimit, data] = rawFrame as [
-        Hex,
-        Hex,
-        Hex,
-        Hex,
-      ]
-      const modeNum = hexToNumber(mode || '0x0')
-      return {
-        mode: numberToFrameMode[modeNum as 0 | 1 | 2] ?? 'default',
-        target: (target && target !== '0x' ? target : null) as Address | null,
-        gasLimit: hexToBigInt(gasLimit || '0x0'),
-        data: data || '0x',
-      } satisfies Frame
-    },
-  )
+  const frames: Frame[] = (rawFrames as unknown as Hex[][]).map((rawFrame) => {
+    if (!Array.isArray(rawFrame) || rawFrame.length !== 6)
+      throw new InvalidSerializedTransactionError({
+        attributes: {},
+        serializedTransaction,
+        type: 'frame',
+      })
+    const [mode, flags, target, gasLimit, value, data] = rawFrame as [
+      Hex,
+      Hex,
+      Hex,
+      Hex,
+      Hex,
+      Hex,
+    ]
+    const modeNum = minimalHexToNumber(mode)
+    if (modeNum > 2)
+      throw new InvalidSerializedTransactionError({
+        attributes: {},
+        serializedTransaction,
+        type: 'frame',
+      })
+    return {
+      mode: numberToFrameMode[modeNum as 0 | 1 | 2] ?? 'default',
+      flags: minimalHexToNumber(flags),
+      target: (target && target !== '0x' ? target : null) as Address | null,
+      gasLimit: gasLimit === '0x' ? 0n : hexToBigInt(gasLimit),
+      value: value === '0x' ? 0n : hexToBigInt(value),
+      data: data || '0x',
+    } satisfies Frame
+  })
+
+  const signatures = rawSignatures.map((rawSignature) => {
+    if (!Array.isArray(rawSignature) || rawSignature.length !== 4)
+      throw new InvalidSerializedTransactionError({
+        attributes: {},
+        serializedTransaction,
+        type: 'frame',
+      })
+    const [scheme, signer, msg, signature] = rawSignature
+    return {
+      scheme: minimalHexToNumber(scheme) as 0 | 1,
+      signer: signer as Address,
+      msg,
+      signature,
+    }
+  })
 
   const transaction: TransactionSerializableFrame = {
-    chainId: hexToNumber(chainId || '0x0'),
-    nonce: hexToNumber(nonce || '0x0'),
+    chainId: minimalHexToNumber(chainId),
+    nonce: minimalHexToNumber(nonce),
     sender: sender as Address,
     frames,
+    signatures,
     type: 'frame',
   }
 
@@ -101,5 +142,12 @@ function parseFrameTransaction(
   if (Array.isArray(blobVersionedHashes) && blobVersionedHashes.length > 0)
     transaction.blobVersionedHashes = blobVersionedHashes
 
+  // Apply the same static schema and semantic checks as outbound transactions.
+  serializeFrameTransaction(transaction)
+
   return transaction
+}
+
+function minimalHexToNumber(value: Hex): number {
+  return value === '0x' ? 0 : hexToNumber(value)
 }

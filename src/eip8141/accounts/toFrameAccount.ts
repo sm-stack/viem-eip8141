@@ -1,7 +1,8 @@
 import type { Address } from 'abitype'
 import type { Hex } from '../../types/misc.js'
-import type { Frame } from '../types/frame.js'
 import type { FrameAccount, FrameCall } from '../types/account.js'
+import type { Frame } from '../types/frame.js'
+import type { TxSignature } from '../types/transaction.js'
 
 export type ToFrameAccountParameters = {
   /** Deployed account address. */
@@ -11,9 +12,12 @@ export type ToFrameAccountParameters = {
    * Given the canonical signature hash, produce the VERIFY frame(s).
    * May also return preceding DEFAULT frames (e.g. for module installation).
    */
-  signFrameTransaction: (parameters: {
-    sigHash: Hex
-  }) => Promise<Frame[]>
+  signFrameTransaction: (parameters: { sigHash: Hex }) => Promise<Frame[]>
+
+  getTransactionSignaturePlaceholders?: (() => TxSignature[]) | undefined
+  signTransactionSignatures?:
+    | ((parameters: { sigHash: Hex }) => Promise<TxSignature[]>)
+    | undefined
 
   /**
    * Encode high-level calls into SENDER frame(s).
@@ -55,6 +59,8 @@ export function toFrameAccount(
     signFrameTransaction,
     encodeCalls = defaultEncodeCalls,
     getDeployFrame,
+    getTransactionSignaturePlaceholders,
+    signTransactionSignatures,
   } = parameters
 
   return {
@@ -62,6 +68,10 @@ export function toFrameAccount(
     type: 'eip8141',
     signFrameTransaction,
     encodeCalls,
+    ...(getTransactionSignaturePlaceholders
+      ? { getTransactionSignaturePlaceholders }
+      : {}),
+    ...(signTransactionSignatures ? { signTransactionSignatures } : {}),
     ...(getDeployFrame ? { getDeployFrame } : {}),
   } as FrameAccount
 }
@@ -73,8 +83,10 @@ export function toFrameAccount(
 function defaultEncodeCalls(calls: FrameCall[]): Frame[] {
   return calls.map((call) => ({
     mode: 'sender' as const,
+    flags: 0,
     target: call.to,
     gasLimit: 100_000n,
+    value: call.value ?? 0n,
     data: call.data ?? '0x',
   }))
 }

@@ -1,6 +1,7 @@
 import type { Address } from 'abitype'
 import type { Hex } from '../../types/misc.js'
 import type { Frame } from './frame.js'
+import type { TxSignature } from './transaction.js'
 
 // ---------------------------------------------------------------------------
 // Frame Call (high-level user intent)
@@ -30,9 +31,15 @@ export type FrameAccount = {
    * this account. May also return preceding DEFAULT frames (e.g. for module
    * installation via Kernel's `enableInstall`).
    */
-  signFrameTransaction: (parameters: {
+  signFrameTransaction: (parameters: { sigHash: Hex }) => Promise<Frame[]>
+
+  /** Signature metadata used while computing the canonical signature hash. */
+  getTransactionSignaturePlaceholders?: () => TxSignature[]
+
+  /** Produce transaction-level signatures for the canonical signature hash. */
+  signTransactionSignatures?: (parameters: {
     sigHash: Hex
-  }) => Promise<Frame[]>
+  }) => Promise<TxSignature[]>
 
   /**
    * Encode high-level calls into SENDER frame(s).
@@ -60,9 +67,7 @@ export type FramePaymaster = {
    * Given the canonical signature hash, produce the paymaster VERIFY frame.
    * This frame should call APPROVE(SCOPE_PAYMENT).
    */
-  signFrameTransaction: (parameters: {
-    sigHash: Hex
-  }) => Promise<Frame>
+  signFrameTransaction: (parameters: { sigHash: Hex }) => Promise<Frame>
 
   /**
    * Optional: produce a DEFAULT frame for post-operation processing

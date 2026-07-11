@@ -17,6 +17,20 @@ import type {
 import type { OneOf } from '../../types/utils.js'
 import type { Frame, FrameReceipt, RpcFrame, RpcFrameReceipt } from './frame.js'
 
+export type TxSignature = {
+  scheme: 0 | 1
+  signer: Address
+  msg: Hex
+  signature: Hex
+}
+
+export type RpcTxSignature = {
+  scheme: Hex
+  signer: Address
+  msg: Hex
+  signature: Hex
+}
+
 // ---------------------------------------------------------------------------
 // Transaction Type
 // ---------------------------------------------------------------------------
@@ -32,6 +46,7 @@ export type TransactionSerializableFrame = {
   nonce: number
   sender: Address
   frames: Frame[]
+  signatures: TxSignature[]
   maxPriorityFeePerGas?: bigint | undefined
   maxFeePerGas?: bigint | undefined
   maxFeePerBlobGas?: bigint | undefined
@@ -61,19 +76,20 @@ type RpcTransaction<pending extends boolean = boolean> =
   RpcTransaction_<pending> & {
     sender?: undefined
     frames?: undefined
+    signatures?: undefined
   }
 
-export type Eip8141RpcFrameTransaction<
-  pending extends boolean = boolean,
-> = Omit<TransactionBase<Quantity, Index, pending>, 'typeHex'> & {
-  sender: Address
-  frames: RpcFrame[]
-  maxPriorityFeePerGas: Hex
-  maxFeePerGas: Hex
-  maxFeePerBlobGas?: Hex | undefined
-  blobVersionedHashes?: Hex[] | undefined
-  type: '0x06'
-}
+export type Eip8141RpcFrameTransaction<pending extends boolean = boolean> =
+  Omit<TransactionBase<Quantity, Index, pending>, 'typeHex'> & {
+    sender: Address
+    frames: RpcFrame[]
+    signatures: RpcTxSignature[]
+    maxPriorityFeePerGas: Hex
+    maxFeePerGas: Hex
+    maxFeePerBlobGas?: Hex | undefined
+    blobVersionedHashes?: Hex[] | undefined
+    type: '0x06'
+  }
 
 export type Eip8141RpcTransaction<pending extends boolean = boolean> = OneOf<
   RpcTransaction<pending> | Eip8141RpcFrameTransaction<pending>
@@ -90,12 +106,14 @@ type Transaction<pending extends boolean = boolean> = Transaction_<
 > & {
   sender?: undefined
   frames?: undefined
+  signatures?: undefined
 }
 
 export type Eip8141FrameTransaction<pending extends boolean = boolean> =
   TransactionBase<bigint, number, pending> & {
     sender: Address
     frames: Frame[]
+    signatures: TxSignature[]
     maxPriorityFeePerGas: bigint
     maxFeePerGas: bigint
     maxFeePerBlobGas?: bigint | undefined
