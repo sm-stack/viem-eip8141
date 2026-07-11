@@ -48,7 +48,7 @@ export type ToSimple8141AccountParameters = {
   /** Owner EOA account (must have `sign` capability). */
   owner: LocalAccount
 
-  /** Gas limit for the VERIFY frame. @default 200_000n */
+  /** Gas limit for the VERIFY frame. @default 90_000n */
   verifyGasLimit?: bigint | undefined
 
   /** Gas limit for each SENDER frame (execute call). @default 100_000n */
@@ -92,7 +92,7 @@ export function toSimple8141Account(
   const {
     address,
     owner,
-    verifyGasLimit = 200_000n,
+    verifyGasLimit = 90_000n,
     senderGasLimit = 100_000n,
     scope = 3,
   } = parameters

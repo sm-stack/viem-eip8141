@@ -45,7 +45,7 @@ export type PrepareFrameTransactionParameters = {
   // EOA options (only used when account is a LocalAccount)
   /** Validation scope (2=execution, 3=execution+payment). @default 2 with paymaster, 3 otherwise */
   scope?: 2 | 3 | undefined
-  /** VERIFY frame gas limit. @default 200_000n */
+  /** VERIFY frame gas limit. @default 40_000n with paymaster, 90_000n otherwise */
   verifyGasLimit?: bigint | undefined
   /** SENDER frame gas limit. @default 200_000n */
   senderGasLimit?: bigint | undefined
@@ -122,7 +122,7 @@ export async function prepareFrameTransaction<chain extends Chain | undefined>(
     if (parameters.account.type === 'local') {
       const {
         scope = paymaster ? 2 : 3,
-        verifyGasLimit = 200_000n,
+        verifyGasLimit = paymaster ? 40_000n : 90_000n,
         senderGasLimit = 200_000n,
       } = parameters
       senderFrames = encodeEoaCalls(calls, senderGasLimit)
@@ -189,14 +189,24 @@ export async function prepareFrameTransaction<chain extends Chain | undefined>(
       ...postOpFrames,
     ]
 
+    const paymasterSignaturePlaceholders =
+      paymaster?.getTransactionSignaturePlaceholders?.() ?? []
+    const allSignaturePlaceholders = [
+      ...signaturePlaceholders,
+      ...paymasterSignaturePlaceholders,
+    ]
     const sigHash = computeSigHash({
       ...baseTxFields,
       frames: allFrames,
-      signatures: signaturePlaceholders,
+      signatures: allSignaturePlaceholders,
     })
-    signatures = signTransactionSignatures
+    const accountSignatures = signTransactionSignatures
       ? await signTransactionSignatures(sigHash)
       : signaturePlaceholders
+    const paymasterSignatures = paymaster?.signTransactionSignatures
+      ? await paymaster.signTransactionSignatures({ sigHash })
+      : paymasterSignaturePlaceholders
+    signatures = [...accountSignatures, ...paymasterSignatures]
   } else {
     throw new Error(
       'prepareFrameTransaction requires either `calls` or `frames` parameter.',

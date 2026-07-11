@@ -17,7 +17,7 @@ import { toFrameAccount } from './toFrameAccount.js'
 // ---------------------------------------------------------------------------
 
 export type ToEoaFrameAccountParameters = {
-  /** Gas limit for the VERIFY frame. @default 200_000n */
+  /** Gas limit for the VERIFY frame. @default 90_000n */
   verifyGasLimit?: bigint | undefined
 
   /** Gas limit for the SENDER frame (batched calls). @default 200_000n */
@@ -85,7 +85,7 @@ export function toEoaFrameAccount(
   parameters: ToEoaFrameAccountParameters,
 ): ToEoaFrameAccountReturnType {
   const {
-    verifyGasLimit = 200_000n,
+    verifyGasLimit = 90_000n,
     senderGasLimit = 200_000n,
     scope = 3,
   } = parameters

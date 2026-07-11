@@ -69,6 +69,14 @@ export type FramePaymaster = {
    */
   signFrameTransaction: (parameters: { sigHash: Hex }) => Promise<Frame>
 
+  /** Signature metadata used while computing the canonical signature hash. */
+  getTransactionSignaturePlaceholders?: () => TxSignature[]
+
+  /** Produce transaction-level paymaster signatures for the sigHash. */
+  signTransactionSignatures?: (parameters: {
+    sigHash: Hex
+  }) => Promise<TxSignature[]>
+
   /**
    * Optional: produce a DEFAULT frame for post-operation processing
    * (e.g. ERC20Paymaster's `postOp`).

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { privateKeyToAccount } from '../../accounts/privateKeyToAccount.js'
 import { toEoaFrameAccount } from '../accounts/toEoaFrameAccount.js'
 import { toSimple8141Account } from '../accounts/toSimple8141Account.js'
+import { signEoaTransaction } from '../utils/eoa.js'
 import { prepareFrameTransaction } from './prepareFrameTransaction.js'
 
 const owner = privateKeyToAccount(`0x${'01'.repeat(32)}`)
@@ -81,5 +82,43 @@ describe('prepareFrameTransaction', () => {
 
     expect(transaction.signatures[0]).toMatchObject({ scheme: 1, msg: '0x' })
     expect(transaction.signatures[0]?.signature).toHaveLength(2 + 128 * 2)
+  })
+
+  test('signs account and paymaster placeholders over the same sigHash', async () => {
+    const paymasterSigner = privateKeyToAccount(`0x${'02'.repeat(32)}`)
+    const transaction = await prepareFrameTransaction({} as never, {
+      ...common,
+      account: owner,
+      calls: [{ to: '0x2222222222222222222222222222222222222222' }],
+      paymaster: {
+        address: '0x3333333333333333333333333333333333333333',
+        signFrameTransaction: async () => ({
+          mode: 'verify',
+          flags: 1,
+          target: '0x3333333333333333333333333333333333333333',
+          gasLimit: 40_000n,
+          value: 0n,
+          data: `0xce4d01a3${'0'.repeat(63)}1`,
+        }),
+        getTransactionSignaturePlaceholders: () => [
+          {
+            scheme: 0,
+            signer: paymasterSigner.address,
+            msg: '0x',
+            signature: `0x${'00'.repeat(65)}`,
+          },
+        ],
+        signTransactionSignatures: async ({ sigHash }) => [
+          await signEoaTransaction(paymasterSigner, sigHash),
+        ],
+      },
+    })
+
+    expect(transaction.signatures.map(({ signer }) => signer)).toEqual([
+      owner.address,
+      paymasterSigner.address,
+    ])
+    expect(transaction.frames.map(({ flags }) => flags)).toEqual([2, 1, 0])
+    expect(transaction.frames[0]?.gasLimit).toBe(40_000n)
   })
 })
