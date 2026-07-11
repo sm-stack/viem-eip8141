@@ -22,14 +22,12 @@ export function encodeEoaCalls(calls: FrameCall[], gasLimit: bigint): Frame[] {
 }
 
 /**
- * EOA default code: build VERIFY frame with ECDSA signature.
+ * Signs the transaction sigHash for the EOA default-code verifier.
  *
  * Uses `account.sign()` — the crypto primitive on LocalAccount.
  *
- * Format:
- * - byte 0: (scope << 4) | 0x1
- * - byte 1: 0x00 (ECDSA)
- * - bytes 2+: v(1) + r(32) + s(32)
+ * The signature is stored in the transaction-level signatures list as
+ * scheme 0 with a 65-byte yParity/r/s payload.
  */
 export async function signEoaTransaction(
   account: LocalAccount,

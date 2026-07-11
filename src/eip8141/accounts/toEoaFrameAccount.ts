@@ -25,11 +25,11 @@ export type ToEoaFrameAccountParameters = {
 
   /**
    * Validation scope:
-   * - `1` = EXECUTION only (use when paymaster pays)
+   * - `2` = EXECUTION only (use when paymaster pays)
    * - `3` = EXECUTION + PAYMENT
    * @default 3
    */
-  scope?: 1 | 3 | undefined
+  scope?: 2 | 3 | undefined
 } & (
   | {
       /** Use ECDSA (secp256k1) signing. This is the default. */

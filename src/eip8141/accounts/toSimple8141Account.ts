@@ -56,8 +56,8 @@ export type ToSimple8141AccountParameters = {
 
   /**
    * Validation scope:
-   * - `1` = EXECUTION only
-   * - `2` = PAYMENT only
+   * - `1` = PAYMENT only
+   * - `2` = EXECUTION only
    * - `3` = EXECUTION + PAYMENT
    * @default 3
    */
@@ -71,7 +71,7 @@ export type ToSimple8141AccountReturnType = FrameAccount
  *
  * This factory handles:
  * - Signing the frame transaction sigHash with the owner key
- * - Encoding `validate(v, r, s, scope)` into a VERIFY frame
+ * - Encoding `validate(signatureIndex)` into a VERIFY frame
  * - Encoding calls into `execute(target, value, data)` SENDER frames
  *
  * @example

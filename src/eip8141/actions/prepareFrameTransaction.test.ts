@@ -47,7 +47,7 @@ describe('prepareFrameTransaction', () => {
     const account = toSimple8141Account({
       address: '0x3333333333333333333333333333333333333333',
       owner,
-      scope: 1,
+      scope: 2,
     })
     const transaction = await prepareFrameTransaction({} as never, {
       ...common,
@@ -57,7 +57,7 @@ describe('prepareFrameTransaction', () => {
 
     expect(transaction.frames[0]).toMatchObject({
       mode: 'verify',
-      flags: 1,
+      flags: 2,
       value: 0n,
       data: `0xce4d01a3${'00'.repeat(32)}`,
     })
