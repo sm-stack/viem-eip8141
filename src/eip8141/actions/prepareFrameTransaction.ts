@@ -23,6 +23,7 @@ import {
   makeEoaSignaturePlaceholder,
   signEoaTransaction,
 } from '../utils/eoa.js'
+import { getKeyedNonce } from './getKeyedNonce.js'
 
 // ---------------------------------------------------------------------------
 // Parameters (same as sendFrameTransaction, without send-specific options)
@@ -36,6 +37,8 @@ export type PrepareFrameTransactionParameters = {
   signatures?: TxSignature[] | undefined
   paymaster?: FramePaymaster | undefined
   nonce?: number | undefined
+  nonceKeys?: bigint[] | undefined
+  nonceSeq?: bigint | undefined
   chainId?: number | undefined
   maxPriorityFeePerGas?: bigint | undefined
   maxFeePerGas?: bigint | undefined
@@ -80,13 +83,39 @@ export async function prepareFrameTransaction<chain extends Chain | undefined>(
     client.chain?.id ??
     (await getAction(client, getChainId, 'getChainId')({}))
 
-  const nonce =
-    parameters.nonce ??
-    (await getAction(
-      client,
-      getTransactionCount,
-      'getTransactionCount',
-    )({ address, blockTag: 'pending' }))
+  if (parameters.nonce !== undefined && parameters.nonceKeys !== undefined)
+    throw new Error('Cannot specify both nonce and nonceKeys.')
+  if (parameters.nonce !== undefined && parameters.nonceSeq !== undefined)
+    throw new Error('Cannot specify both nonce and nonceSeq.')
+  if (parameters.nonceSeq !== undefined && parameters.nonceKeys === undefined)
+    throw new Error('nonceSeq requires nonceKeys.')
+
+  let nonceKeys: bigint[]
+  let nonceSeq: bigint
+  if (parameters.nonce !== undefined) {
+    nonceKeys = [0n]
+    nonceSeq = BigInt(parameters.nonce)
+  } else if (parameters.nonceKeys !== undefined) {
+    nonceKeys = parameters.nonceKeys
+    if (parameters.nonceSeq !== undefined) nonceSeq = parameters.nonceSeq
+    else {
+      const sequences = await Promise.all(
+        nonceKeys.map((key) => getKeyedNonce(client, { sender: address, key })),
+      )
+      nonceSeq = sequences[0] ?? 0n
+      if (sequences.some((sequence) => sequence !== nonceSeq))
+        throw new Error('Selected nonce keys have different current sequences.')
+    }
+  } else {
+    nonceKeys = [0n]
+    nonceSeq = BigInt(
+      await getAction(
+        client,
+        getTransactionCount,
+        'getTransactionCount',
+      )({ address, blockTag: 'pending' }),
+    )
+  }
 
   let { maxFeePerGas, maxPriorityFeePerGas } = parameters
 
@@ -164,7 +193,8 @@ export async function prepareFrameTransaction<chain extends Chain | undefined>(
 
     const baseTxFields = {
       chainId,
-      nonce,
+      nonceKeys,
+      nonceSeq,
       sender: address,
       maxPriorityFeePerGas,
       maxFeePerGas,
@@ -215,7 +245,8 @@ export async function prepareFrameTransaction<chain extends Chain | undefined>(
 
   return {
     chainId,
-    nonce,
+    nonceKeys,
+    nonceSeq,
     sender: address,
     frames: allFrames,
     signatures,

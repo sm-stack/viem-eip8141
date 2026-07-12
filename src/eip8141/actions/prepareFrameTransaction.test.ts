@@ -42,6 +42,26 @@ describe('prepareFrameTransaction', () => {
       signer: owner.address,
       msg: '0x',
     })
+    expect(transaction).toMatchObject({ nonceKeys: [0n], nonceSeq: 0n })
+  })
+
+  test('loads the shared sequence for explicit keyed nonce domains', async () => {
+    const request = async ({ method }: { method: string }) => {
+      if (method === 'eth_getStorageAt') return '0x3'
+      throw new Error(`unexpected method ${method}`)
+    }
+    const transaction = await prepareFrameTransaction({ request } as never, {
+      account: owner,
+      chainId: 1,
+      nonceKeys: [7n, 11n],
+      maxFeePerGas: 10n,
+      maxPriorityFeePerGas: 1n,
+      calls: [{ to: '0x2222222222222222222222222222222222222222' }],
+    })
+    expect(transaction).toMatchObject({
+      nonceKeys: [7n, 11n],
+      nonceSeq: 3n,
+    })
   })
 
   test('encodes Simple8141Account validate(signatureIndex)', async () => {

@@ -9,9 +9,9 @@ import {
   type ParseTransactionReturnType as ParseTransactionReturnType_,
   parseTransaction as parseTransaction_,
 } from '../utils/transaction/parseTransaction.js'
+import { serializeFrameTransaction } from './serializers.js'
 import type { Frame } from './types/frame.js'
 import { numberToFrameMode } from './types/frame.js'
-import { serializeFrameTransaction } from './serializers.js'
 import type {
   Eip8141TransactionSerialized,
   TransactionSerializableFrame,
@@ -46,7 +46,7 @@ function parseFrameTransaction(
   const payload = `0x${serializedTransaction.slice(4)}` as Hex
   const transactionArray = fromRlp(payload, 'hex')
 
-  if (!Array.isArray(transactionArray) || transactionArray.length !== 9)
+  if (!Array.isArray(transactionArray) || transactionArray.length !== 10)
     throw new InvalidSerializedTransactionError({
       attributes: {},
       serializedTransaction,
@@ -55,7 +55,8 @@ function parseFrameTransaction(
 
   const [
     chainId,
-    nonce,
+    rawNonceKeys,
+    nonceSeq,
     sender,
     rawFrames,
     rawSignatures,
@@ -65,6 +66,7 @@ function parseFrameTransaction(
     blobVersionedHashes,
   ] = transactionArray as [
     Hex,
+    Hex[],
     Hex,
     Hex,
     Hex[][],
@@ -126,7 +128,8 @@ function parseFrameTransaction(
 
   const transaction: TransactionSerializableFrame = {
     chainId: minimalHexToNumber(chainId),
-    nonce: minimalHexToNumber(nonce),
+    nonceKeys: rawNonceKeys.map(minimalHexToBigInt),
+    nonceSeq: minimalHexToBigInt(nonceSeq),
     sender: sender as Address,
     frames,
     signatures,
@@ -150,4 +153,8 @@ function parseFrameTransaction(
 
 function minimalHexToNumber(value: Hex): number {
   return value === '0x' ? 0 : hexToNumber(value)
+}
+
+function minimalHexToBigInt(value: Hex): bigint {
+  return value === '0x' ? 0n : hexToBigInt(value)
 }

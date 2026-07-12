@@ -41,9 +41,8 @@ export type Eip8141TransactionType = TransactionType | 'frame'
 // Serializable (what the user builds / serializer accepts)
 // ---------------------------------------------------------------------------
 
-export type TransactionSerializableFrame = {
+type TransactionSerializableFrameBase = {
   chainId: number
-  nonce: number
   sender: Address
   frames: Frame[]
   signatures: TxSignature[]
@@ -53,6 +52,21 @@ export type TransactionSerializableFrame = {
   blobVersionedHashes?: Hex[] | undefined
   type: 'frame'
 }
+
+export type TransactionSerializableFrame = TransactionSerializableFrameBase &
+  (
+    | {
+        nonceKeys: bigint[]
+        nonceSeq: bigint
+        nonce?: undefined
+      }
+    | {
+        /** @deprecated Use nonceKeys and nonceSeq. Encoded as nonceKeys=[0]. */
+        nonce: number
+        nonceKeys?: undefined
+        nonceSeq?: undefined
+      }
+  )
 
 export type Eip8141TransactionSerializable = OneOf<
   TransactionSerializableFrame | TransactionSerializable
@@ -77,10 +91,15 @@ type RpcTransaction<pending extends boolean = boolean> =
     sender?: undefined
     frames?: undefined
     signatures?: undefined
+    nonceKeys?: undefined
+    nonceSeq?: undefined
   }
 
 export type Eip8141RpcFrameTransaction<pending extends boolean = boolean> =
-  Omit<TransactionBase<Quantity, Index, pending>, 'typeHex'> & {
+  Omit<TransactionBase<Quantity, Index, pending>, 'nonce' | 'typeHex'> & {
+    nonce?: undefined
+    nonceKeys: Hex[]
+    nonceSeq: Hex
     sender: Address
     frames: RpcFrame[]
     signatures: RpcTxSignature[]
@@ -109,17 +128,22 @@ type Transaction<pending extends boolean = boolean> = Transaction_<
   signatures?: undefined
 }
 
-export type Eip8141FrameTransaction<pending extends boolean = boolean> =
-  TransactionBase<bigint, number, pending> & {
-    sender: Address
-    frames: Frame[]
-    signatures: TxSignature[]
-    maxPriorityFeePerGas: bigint
-    maxFeePerGas: bigint
-    maxFeePerBlobGas?: bigint | undefined
-    blobVersionedHashes?: Hex[] | undefined
-    type: 'frame'
-  }
+export type Eip8141FrameTransaction<pending extends boolean = boolean> = Omit<
+  TransactionBase<bigint, number, pending>,
+  'nonce'
+> & {
+  nonce?: undefined
+  nonceKeys: bigint[]
+  nonceSeq: bigint
+  sender: Address
+  frames: Frame[]
+  signatures: TxSignature[]
+  maxPriorityFeePerGas: bigint
+  maxFeePerGas: bigint
+  maxFeePerBlobGas?: bigint | undefined
+  blobVersionedHashes?: Hex[] | undefined
+  type: 'frame'
+}
 
 export type Eip8141Transaction<pending extends boolean = boolean> = OneOf<
   Transaction<pending> | Eip8141FrameTransaction<pending>

@@ -7,6 +7,10 @@ export const FRAME_TX_TYPE = 0x06
 export const ENTRY_POINT_ADDRESS =
   '0x00000000000000000000000000000000000000aa' as Address
 
+/** EIP-8250 protocol-managed keyed nonce storage. */
+export const NONCE_MANAGER_ADDRESS =
+  '0x0000000000000000000000000000000000008250' as Address
+
 /** Frame execution modes. */
 export const FrameMode = {
   /** Execute frame as ENTRY_POINT. */

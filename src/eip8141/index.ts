@@ -1,4 +1,4 @@
-// biome-ignore lint/performance/noBarrelFile: entrypoint module
+// biome-ignore-all lint/performance/noBarrelFile: entrypoint module
 
 export {
   type ToEoaFrameAccountParameters,
@@ -16,6 +16,10 @@ export {
   type ToSimple8141AccountReturnType,
   toSimple8141Account,
 } from './accounts/toSimple8141Account.js'
+export {
+  type GetKeyedNonceParameters,
+  getKeyedNonce,
+} from './actions/getKeyedNonce.js'
 export {
   type PrepareFrameTransactionParameters,
   type PrepareFrameTransactionReturnType,
@@ -39,6 +43,7 @@ export {
   ENTRY_POINT_ADDRESS,
   FRAME_TX_TYPE,
   FrameMode,
+  NONCE_MANAGER_ADDRESS,
 } from './constants.js'
 
 // ── Decorators ───────────────────────────────────────────────────────────────

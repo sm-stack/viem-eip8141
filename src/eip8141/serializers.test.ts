@@ -10,7 +10,8 @@ import { getFrameTransactionGas } from './utils/gas.js'
 
 const transaction: TransactionSerializableFrame = {
   chainId: 1,
-  nonce: 7,
+  nonceKeys: [0n],
+  nonceSeq: 7n,
   sender: '0x1111111111111111111111111111111111111111',
   frames: [
     {
@@ -62,21 +63,28 @@ const transaction: TransactionSerializableFrame = {
 }
 
 const rawTransaction =
-  '0x06f901a40107941111111111111111111111111111111111111111f84cca01038082c3508082aabbe202049422222222222222222222222222222222222222228301117082303983ccddeedd8080942222222222222222222222222222222222222222827530808199f90117f85a8094333333333333333333333333333333333333333380b8410011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222f8b901944444444444444444444444444444444444444444a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab880bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee036480e1a00102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20'
+  '0x06f901a601c18007941111111111111111111111111111111111111111f84cca01038082c3508082aabbe202049422222222222222222222222222222222222222228301117082303983ccddeedd8080942222222222222222222222222222222222222222827530808199f90117f85a8094333333333333333333333333333333333333333380b8410011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222f8b901944444444444444444444444444444444444444444a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab880bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee036480e1a00102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20'
 
 describe('EIP-8141 frame transaction', () => {
-  test('matches the geth Phase 1 raw transaction and sig hash vector', () => {
+  test('matches the geth EIP-8250 raw transaction and sig hash vector', () => {
     expect(serializeFrameTransaction(transaction)).toBe(rawTransaction)
     expect(computeSigHash(transaction)).toBe(
-      '0x8a6995cd49dc64c051cfed96ff9809e2ecfae14413127a51f76f43347da894b3',
+      '0x0b5ac8a9045a91da5db381e495a28164a69ca61b07098a5aabd630a891b4d93a',
     )
   })
 
-  test('round trips the 9-field transaction and 6-field frames', () => {
+  test('round trips the 10-field transaction and 6-field frames', () => {
     expect(parseTransaction(rawTransaction)).toEqual({
       ...transaction,
       maxFeePerBlobGas: undefined,
     })
+  })
+
+  test('promotes the legacy nonce alias to singleton key zero', () => {
+    const { nonceKeys: _, nonceSeq: __, ...base } = transaction
+    expect(serializeFrameTransaction({ ...base, nonce: 7 })).toBe(
+      rawTransaction,
+    )
   })
 
   test('charges the canonical fixed, calldata, signature, and frame gas', () => {
@@ -113,6 +121,26 @@ describe('EIP-8141 frame transaction', () => {
     expect(() =>
       parseTransaction(
         '0x06e80180941111111111111111111111111111111111111111c0808080c0',
+      ),
+    ).toThrow()
+  })
+
+  test('rejects invalid keyed nonce domains', () => {
+    expect(() =>
+      serializeFrameTransaction({
+        ...transaction,
+        nonceKeys: [2n, 1n],
+      }),
+    ).toThrow('strictly increasing')
+    expect(() =>
+      serializeFrameTransaction({
+        ...transaction,
+        nonceKeys: [0n, 1n],
+      }),
+    ).toThrow('singleton')
+    expect(() =>
+      parseTransaction(
+        '0x06f901a40107941111111111111111111111111111111111111111f84cca01038082c3508082aabbe202049422222222222222222222222222222222222222228301117082303983ccddeedd8080942222222222222222222222222222222222222222827530808199f90117f85a8094333333333333333333333333333333333333333380b8410011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222f8b901944444444444444444444444444444444444444444a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab880bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee036480e1a00102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20',
       ),
     ).toThrow()
   })

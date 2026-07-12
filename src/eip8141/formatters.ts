@@ -56,6 +56,8 @@ export const formatters = {
     format(args: Eip8141RpcFrameTransaction): Eip8141FrameTransaction {
       const transaction = {} as Eip8141FrameTransaction
       if (args.type === '0x06') {
+        transaction.nonceKeys = args.nonceKeys.map((key) => hexToBigInt(key))
+        transaction.nonceSeq = hexToBigInt(args.nonceSeq)
         transaction.sender = args.sender
         transaction.frames = args.frames?.map(formatFrame) ?? []
         transaction.signatures =
