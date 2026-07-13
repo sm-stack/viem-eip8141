@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'vitest'
+import { existsSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { privateKeyToAccount } from '../accounts/privateKeyToAccount.js'
 import { parseTransaction } from './parsers.js'
 import { serializeFrameTransaction } from './serializers.js'
@@ -8,76 +10,38 @@ import { makeEoaSignaturePlaceholder, signEoaTransaction } from './utils/eoa.js'
 import { makeExpiryFrame, withAtomicBatch } from './utils/frames.js'
 import { getFrameTransactionGas } from './utils/gas.js'
 
-const transaction: TransactionSerializableFrame = {
-  chainId: 1,
-  nonceKeys: [0n],
-  nonceSeq: 7n,
-  sender: '0x1111111111111111111111111111111111111111',
-  frames: [
-    {
-      mode: 'verify',
-      flags: 3,
-      target: null,
-      gasLimit: 50_000n,
-      value: 0n,
-      data: '0xaabb',
-    },
-    {
-      mode: 'sender',
-      flags: 4,
-      target: '0x2222222222222222222222222222222222222222',
-      gasLimit: 70_000n,
-      value: 12_345n,
-      data: '0xccddee',
-    },
-    {
-      mode: 'default',
-      flags: 0,
-      target: '0x2222222222222222222222222222222222222222',
-      gasLimit: 30_000n,
-      value: 0n,
-      data: '0x99',
-    },
-  ],
-  signatures: [
-    {
-      scheme: 0,
-      signer: '0x3333333333333333333333333333333333333333',
-      msg: '0x',
-      signature: `0x00${'11'.repeat(32)}${'22'.repeat(32)}`,
-    },
-    {
-      scheme: 1,
-      signer: '0x4444444444444444444444444444444444444444',
-      msg: `0x${'aa'.repeat(32)}`,
-      signature: `0x${'bb'.repeat(32)}${'cc'.repeat(32)}${'dd'.repeat(32)}${'ee'.repeat(32)}`,
-    },
-  ],
-  recentRootReferences: [
-    {
-      sourceId: `0x${'01'.repeat(32)}`,
-      slot: 9n,
-      root: `0x${'02'.repeat(32)}`,
-    },
-  ],
-  maxPriorityFeePerGas: 3n,
-  maxFeePerGas: 100n,
-  maxFeePerBlobGas: 0n,
-  blobVersionedHashes: [
-    '0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20',
-  ],
-  type: 'frame',
-}
-
-const rawTransaction =
-  '0x06f901ed01c18007941111111111111111111111111111111111111111f84cca01038082c3508082aabbe202049422222222222222222222222222222222222222228301117082303983ccddeedd8080942222222222222222222222222222222222222222827530808199f90117f85a8094333333333333333333333333333333333333333380b8410011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222f8b901944444444444444444444444444444444444444444a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab880bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee036480e1a00102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20f845f843a0010101010101010101010101010101010101010101010101010101010101010109a00202020202020202020202020202020202020202020202020202020202020202'
+const workspaceVectorPath = fileURLToPath(
+  new URL('../../../.context/test-vectors/frame-transaction-v1.json', import.meta.url),
+)
+const vectorPath =
+  process.env.EIP8141_VECTOR_PATH ??
+  (existsSync(workspaceVectorPath)
+    ? workspaceVectorPath
+    : fileURLToPath(new URL('./testdata/frame-transaction-v1.json', import.meta.url)))
+const stored = JSON.parse(readFileSync(vectorPath, 'utf8'))
+const transaction = {
+  ...stored.transaction,
+  chainId: Number(stored.transaction.chainId),
+  nonceKeys: stored.transaction.nonceKeys.map(BigInt),
+  nonceSeq: BigInt(stored.transaction.nonceSeq),
+  frames: stored.transaction.frames.map((frame: any) => ({
+    ...frame,
+    gasLimit: BigInt(frame.gasLimit),
+    value: BigInt(frame.value),
+  })),
+  maxPriorityFeePerGas: BigInt(stored.transaction.maxPriorityFeePerGas),
+  maxFeePerGas: BigInt(stored.transaction.maxFeePerGas),
+  maxFeePerBlobGas: BigInt(stored.transaction.maxFeePerBlobGas),
+  recentRootReferences: stored.transaction.recentRootReferences.map(
+    (reference: any) => ({ ...reference, slot: BigInt(reference.slot) }),
+  ),
+} as TransactionSerializableFrame
+const rawTransaction = stored.rawTransaction
 
 describe('EIP-8141 frame transaction', () => {
   test('matches the geth EIP-8272 raw transaction and sig hash vector', () => {
     expect(serializeFrameTransaction(transaction)).toBe(rawTransaction)
-    expect(computeSigHash(transaction)).toBe(
-      '0xc0aeaa116efe492bd25f0648a49964062170aa3f911dbcdb61cb888945a1bde4',
-    )
+    expect(computeSigHash(transaction)).toBe(stored.sigHash)
   })
 
   test('round trips the 11-field transaction and 6-field frames', () => {
@@ -95,7 +59,7 @@ describe('EIP-8141 frame transaction', () => {
   })
 
   test('charges the canonical fixed, calldata, signature, and frame gas', () => {
-    expect(getFrameTransactionGas(transaction)).toBe(197_537n)
+    expect(getFrameTransactionGas(transaction)).toBe(BigInt(stored.intrinsicGas))
   })
 
   test('builds canonical expiry and atomic batch frames', () => {
