@@ -67,6 +67,12 @@ export const formatters = {
             msg: signature.msg,
             signature: signature.signature,
           })) ?? []
+        transaction.recentRootReferences =
+          args.recentRootReferences?.map((reference) => ({
+            sourceId: reference.sourceId,
+            slot: hexToBigInt(reference.slot),
+            root: reference.root,
+          })) ?? []
         transaction.type = 'frame'
       }
       return transaction

@@ -53,6 +53,13 @@ const transaction: TransactionSerializableFrame = {
       signature: `0x${'bb'.repeat(32)}${'cc'.repeat(32)}${'dd'.repeat(32)}${'ee'.repeat(32)}`,
     },
   ],
+  recentRootReferences: [
+    {
+      sourceId: `0x${'01'.repeat(32)}`,
+      slot: 9n,
+      root: `0x${'02'.repeat(32)}`,
+    },
+  ],
   maxPriorityFeePerGas: 3n,
   maxFeePerGas: 100n,
   maxFeePerBlobGas: 0n,
@@ -63,17 +70,17 @@ const transaction: TransactionSerializableFrame = {
 }
 
 const rawTransaction =
-  '0x06f901a601c18007941111111111111111111111111111111111111111f84cca01038082c3508082aabbe202049422222222222222222222222222222222222222228301117082303983ccddeedd8080942222222222222222222222222222222222222222827530808199f90117f85a8094333333333333333333333333333333333333333380b8410011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222f8b901944444444444444444444444444444444444444444a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab880bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee036480e1a00102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20'
+  '0x06f901ed01c18007941111111111111111111111111111111111111111f84cca01038082c3508082aabbe202049422222222222222222222222222222222222222228301117082303983ccddeedd8080942222222222222222222222222222222222222222827530808199f90117f85a8094333333333333333333333333333333333333333380b8410011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222f8b901944444444444444444444444444444444444444444a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab880bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee036480e1a00102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20f845f843a0010101010101010101010101010101010101010101010101010101010101010109a00202020202020202020202020202020202020202020202020202020202020202'
 
 describe('EIP-8141 frame transaction', () => {
-  test('matches the geth EIP-8250 raw transaction and sig hash vector', () => {
+  test('matches the geth EIP-8272 raw transaction and sig hash vector', () => {
     expect(serializeFrameTransaction(transaction)).toBe(rawTransaction)
     expect(computeSigHash(transaction)).toBe(
-      '0x0b5ac8a9045a91da5db381e495a28164a69ca61b07098a5aabd630a891b4d93a',
+      '0xc0aeaa116efe492bd25f0648a49964062170aa3f911dbcdb61cb888945a1bde4',
     )
   })
 
-  test('round trips the 10-field transaction and 6-field frames', () => {
+  test('round trips the 11-field transaction and 6-field frames', () => {
     expect(parseTransaction(rawTransaction)).toEqual({
       ...transaction,
       maxFeePerBlobGas: undefined,
@@ -88,7 +95,7 @@ describe('EIP-8141 frame transaction', () => {
   })
 
   test('charges the canonical fixed, calldata, signature, and frame gas', () => {
-    expect(getFrameTransactionGas(transaction)).toBe(190_295n)
+    expect(getFrameTransactionGas(transaction)).toBe(197_537n)
   })
 
   test('builds canonical expiry and atomic batch frames', () => {
@@ -166,6 +173,33 @@ describe('EIP-8141 frame transaction', () => {
         ],
       }),
     ).toThrow('explicit zero')
+  })
+
+  test('rejects invalid recent-root reference metadata', () => {
+    expect(() =>
+      serializeFrameTransaction({
+        ...transaction,
+        recentRootReferences: Array(17).fill(
+          transaction.recentRootReferences[0]!,
+        ),
+      }),
+    ).toThrow('MAX_RECENT_ROOT_REFS')
+    expect(() =>
+      serializeFrameTransaction({
+        ...transaction,
+        recentRootReferences: [
+          { ...transaction.recentRootReferences[0]!, sourceId: '0x1234' },
+        ],
+      }),
+    ).toThrow('sourceId must be 32 bytes')
+    expect(() =>
+      serializeFrameTransaction({
+        ...transaction,
+        recentRootReferences: [
+          { ...transaction.recentRootReferences[0]!, slot: 1n << 64n },
+        ],
+      }),
+    ).toThrow('slot does not fit uint64')
   })
 
   test('round trips canonical zero frame integers', () => {

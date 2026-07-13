@@ -11,6 +11,10 @@ export const ENTRY_POINT_ADDRESS =
 export const NONCE_MANAGER_ADDRESS =
   '0x0000000000000000000000000000000000008250' as Address
 
+/** EIP-8272 native recent-root writer and storage address. */
+export const RECENT_ROOT_ADDRESS =
+  '0x0000000000000000000000000000000000008272' as Address
+
 /** Frame execution modes. */
 export const FrameMode = {
   /** Execute frame as ENTRY_POINT. */

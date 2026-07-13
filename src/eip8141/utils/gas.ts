@@ -7,6 +7,8 @@ export const frameTransactionBaseGas = 15_000n
 export const frameTransactionPerFrameGas = 475n
 export const secp256k1SignatureGas = 2_800n
 export const p256SignatureGas = 6_700n
+export const recentRootBaseGas = 2_400n
+export const recentRootPerReferenceGas = 2_002n
 
 export function getFrameTransactionGas(
   transaction: TransactionSerializableFrame,
@@ -25,7 +27,18 @@ export function getFrameTransactionGas(
     signature.msg,
     signature.signature,
   ])
-  const calldataGas = eip7623CalldataGas(toRlp(frames), toRlp(signatures))
+  const recentRootReferences = transaction.recentRootReferences.map(
+    (reference) => [
+      reference.sourceId,
+      minimalHex(reference.slot),
+      reference.root,
+    ],
+  )
+  const calldataGas = eip7623CalldataGas(
+    toRlp(frames),
+    toRlp(signatures),
+    toRlp(recentRootReferences),
+  )
   const signatureGas = transaction.signatures.reduce(
     (gas, signature) =>
       gas + (signature.scheme === 0 ? secp256k1SignatureGas : p256SignatureGas),
@@ -35,11 +48,17 @@ export function getFrameTransactionGas(
     (gas, frame) => gas + frame.gasLimit,
     0n,
   )
+  const recentRootGas =
+    recentRootReferences.length === 0
+      ? 0n
+      : recentRootBaseGas +
+        BigInt(recentRootReferences.length) * recentRootPerReferenceGas
   return (
     frameTransactionBaseGas +
     BigInt(transaction.frames.length) * frameTransactionPerFrameGas +
     calldataGas +
     signatureGas +
+    recentRootGas +
     executionGas
   )
 }

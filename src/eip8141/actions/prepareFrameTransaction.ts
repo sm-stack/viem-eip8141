@@ -14,6 +14,7 @@ import type {
 } from '../types/account.js'
 import type { Frame } from '../types/frame.js'
 import type {
+  RecentRootReference,
   TransactionSerializableFrame,
   TxSignature,
 } from '../types/transaction.js'
@@ -35,6 +36,7 @@ export type PrepareFrameTransactionParameters = {
   calls?: FrameCall[] | undefined
   frames?: Frame[] | undefined
   signatures?: TxSignature[] | undefined
+  recentRootReferences?: RecentRootReference[] | undefined
   paymaster?: FramePaymaster | undefined
   nonce?: number | undefined
   nonceKeys?: bigint[] | undefined
@@ -200,6 +202,7 @@ export async function prepareFrameTransaction<chain extends Chain | undefined>(
       maxFeePerGas,
       maxFeePerBlobGas,
       blobVersionedHashes,
+      recentRootReferences: parameters.recentRootReferences ?? [],
       type: 'frame' as const,
     }
 
@@ -250,6 +253,7 @@ export async function prepareFrameTransaction<chain extends Chain | undefined>(
     sender: address,
     frames: allFrames,
     signatures,
+    recentRootReferences: parameters.recentRootReferences ?? [],
     maxPriorityFeePerGas,
     maxFeePerGas,
     maxFeePerBlobGas,

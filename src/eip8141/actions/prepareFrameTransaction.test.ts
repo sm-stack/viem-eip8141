@@ -15,9 +15,17 @@ const common = {
 
 describe('prepareFrameTransaction', () => {
   test('builds LocalAccount EOA frames with tx-level signatures', async () => {
+    const recentRootReferences = [
+      {
+        sourceId: `0x${'44'.repeat(32)}` as const,
+        slot: 12n,
+        root: `0x${'55'.repeat(32)}` as const,
+      },
+    ]
     const transaction = await prepareFrameTransaction({} as never, {
       ...common,
       account: owner,
+      recentRootReferences,
       calls: [
         {
           to: '0x2222222222222222222222222222222222222222',
@@ -43,6 +51,7 @@ describe('prepareFrameTransaction', () => {
       msg: '0x',
     })
     expect(transaction).toMatchObject({ nonceKeys: [0n], nonceSeq: 0n })
+    expect(transaction.recentRootReferences).toEqual(recentRootReferences)
   })
 
   test('loads the shared sequence for explicit keyed nonce domains', async () => {

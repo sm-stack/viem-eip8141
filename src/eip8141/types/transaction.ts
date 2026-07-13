@@ -31,6 +31,18 @@ export type RpcTxSignature = {
   signature: Hex
 }
 
+export type RecentRootReference = {
+  sourceId: Hex
+  slot: bigint
+  root: Hex
+}
+
+export type RpcRecentRootReference = {
+  sourceId: Hex
+  slot: Hex
+  root: Hex
+}
+
 // ---------------------------------------------------------------------------
 // Transaction Type
 // ---------------------------------------------------------------------------
@@ -46,6 +58,7 @@ type TransactionSerializableFrameBase = {
   sender: Address
   frames: Frame[]
   signatures: TxSignature[]
+  recentRootReferences: RecentRootReference[]
   maxPriorityFeePerGas?: bigint | undefined
   maxFeePerGas?: bigint | undefined
   maxFeePerBlobGas?: bigint | undefined
@@ -91,6 +104,7 @@ type RpcTransaction<pending extends boolean = boolean> =
     sender?: undefined
     frames?: undefined
     signatures?: undefined
+    recentRootReferences?: undefined
     nonceKeys?: undefined
     nonceSeq?: undefined
   }
@@ -103,6 +117,7 @@ export type Eip8141RpcFrameTransaction<pending extends boolean = boolean> =
     sender: Address
     frames: RpcFrame[]
     signatures: RpcTxSignature[]
+    recentRootReferences: RpcRecentRootReference[]
     maxPriorityFeePerGas: Hex
     maxFeePerGas: Hex
     maxFeePerBlobGas?: Hex | undefined
@@ -126,6 +141,7 @@ type Transaction<pending extends boolean = boolean> = Transaction_<
   sender?: undefined
   frames?: undefined
   signatures?: undefined
+  recentRootReferences?: undefined
 }
 
 export type Eip8141FrameTransaction<pending extends boolean = boolean> = Omit<
@@ -138,6 +154,7 @@ export type Eip8141FrameTransaction<pending extends boolean = boolean> = Omit<
   sender: Address
   frames: Frame[]
   signatures: TxSignature[]
+  recentRootReferences: RecentRootReference[]
   maxPriorityFeePerGas: bigint
   maxFeePerGas: bigint
   maxFeePerBlobGas?: bigint | undefined

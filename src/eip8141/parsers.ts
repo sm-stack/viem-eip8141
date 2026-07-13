@@ -46,7 +46,7 @@ function parseFrameTransaction(
   const payload = `0x${serializedTransaction.slice(4)}` as Hex
   const transactionArray = fromRlp(payload, 'hex')
 
-  if (!Array.isArray(transactionArray) || transactionArray.length !== 10)
+  if (!Array.isArray(transactionArray) || transactionArray.length !== 11)
     throw new InvalidSerializedTransactionError({
       attributes: {},
       serializedTransaction,
@@ -64,6 +64,7 @@ function parseFrameTransaction(
     maxFeePerGas,
     maxFeePerBlobGas,
     blobVersionedHashes,
+    rawRecentRootReferences,
   ] = transactionArray as [
     Hex,
     Hex[],
@@ -75,6 +76,7 @@ function parseFrameTransaction(
     Hex,
     Hex,
     Hex[],
+    Hex[][],
   ]
 
   // Parse frames
@@ -126,6 +128,17 @@ function parseFrameTransaction(
     }
   })
 
+  const recentRootReferences = rawRecentRootReferences.map((rawReference) => {
+    if (!Array.isArray(rawReference) || rawReference.length !== 3)
+      throw new InvalidSerializedTransactionError({
+        attributes: {},
+        serializedTransaction,
+        type: 'frame',
+      })
+    const [sourceId, slot, root] = rawReference
+    return { sourceId, slot: minimalHexToBigInt(slot), root }
+  })
+
   const transaction: TransactionSerializableFrame = {
     chainId: minimalHexToNumber(chainId),
     nonceKeys: rawNonceKeys.map(minimalHexToBigInt),
@@ -133,6 +146,7 @@ function parseFrameTransaction(
     sender: sender as Address,
     frames,
     signatures,
+    recentRootReferences,
     type: 'frame',
   }
 

@@ -44,6 +44,7 @@ export {
   FRAME_TX_TYPE,
   FrameMode,
   NONCE_MANAGER_ADDRESS,
+  RECENT_ROOT_ADDRESS,
 } from './constants.js'
 
 // ── Decorators ───────────────────────────────────────────────────────────────
@@ -86,6 +87,8 @@ export type {
   Eip8141TransactionReceipt,
   Eip8141TransactionSerializable,
   Eip8141TransactionSerialized,
+  RecentRootReference,
+  RpcRecentRootReference,
   RpcTxSignature,
   TransactionSerializableFrame,
   TransactionSerializedFrame,
@@ -110,6 +113,14 @@ export {
   frameTransactionPerFrameGas,
   getFrameTransactionGas,
   p256SignatureGas,
+  recentRootBaseGas,
+  recentRootPerReferenceGas,
   secp256k1SignatureGas,
 } from './utils/gas.js'
 export { isFrameTransaction } from './utils/isFrameTransaction.js'
+export {
+  computeSourceId,
+  makeRootReference,
+  type WriteRecentRootParameters,
+  writeRecentRoot,
+} from './utils/recentRoots.js'

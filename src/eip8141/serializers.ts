@@ -4,6 +4,7 @@ import type { Hex, Signature } from '../types/misc.js'
 import type { TransactionSerializable } from '../types/transaction.js'
 import { isAddress } from '../utils/address/isAddress.js'
 import { concatHex } from '../utils/data/concat.js'
+import { isHex } from '../utils/data/isHex.js'
 import { toHex } from '../utils/encoding/toHex.js'
 import { toRlp } from '../utils/encoding/toRlp.js'
 import { serializeTransaction as serializeTransaction_ } from '../utils/transaction/serializeTransaction.js'
@@ -47,7 +48,7 @@ export const serializers = {
  * Serializes an EIP-8141 frame transaction to its RLP-encoded form.
  *
  * Format: `0x06 || rlp([chainId, nonceKeys, nonceSeq, sender, frames, signatures, maxPriorityFeePerGas,
- *          maxFeePerGas, maxFeePerBlobGas, blobVersionedHashes])`
+ *          maxFeePerGas, maxFeePerBlobGas, blobVersionedHashes, recentRootReferences])`
  *
  * Each frame is encoded as: `[mode, flags, target, gasLimit, value, data]`
  */
@@ -78,6 +79,7 @@ function encodeFrameTransaction(
     maxFeePerGas,
     maxFeePerBlobGas,
     blobVersionedHashes,
+    recentRootReferences,
   } = transaction
   const { nonceKeys, nonceSeq } = normalizeNonce(transaction)
 
@@ -96,6 +98,13 @@ function encodeFrameTransaction(
     signature.msg,
     signature.signature,
   ])
+  const serializedRecentRootReferences: Hex[][] = recentRootReferences.map(
+    (reference) => [
+      reference.sourceId,
+      toMinimalHex(reference.slot),
+      reference.root,
+    ],
+  )
 
   const serializedTransaction: (Hex | Hex[] | Hex[][])[] = [
     toMinimalHex(chainId),
@@ -108,6 +117,7 @@ function encodeFrameTransaction(
     toMinimalHex(maxFeePerGas ?? 0),
     toMinimalHex(maxFeePerBlobGas ?? 0),
     blobVersionedHashes ?? [],
+    serializedRecentRootReferences,
   ]
 
   return concatHex([
@@ -130,7 +140,7 @@ function assertFrameTransaction(
   transaction: TransactionSerializableFrame,
   options: { allowEmptySignatures?: boolean },
 ) {
-  const { sender, frames, signatures } = transaction
+  const { sender, frames, signatures, recentRootReferences } = transaction
   normalizeNonce(transaction)
   if (!isAddress(sender)) throw new InvalidAddressError({ address: sender })
   if (!frames || frames.length === 0)
@@ -184,6 +194,20 @@ function assertFrameTransaction(
       throw new Error(`Signature ${index} message has invalid length.`)
     if (messageLength === 32 && /^0x0+$/.test(signature.msg))
       throw new Error(`Signature ${index} has an explicit zero message.`)
+  }
+  if (recentRootReferences.length > 16)
+    throw new Error('Frame transaction exceeds MAX_RECENT_ROOT_REFS (16).')
+  for (const [index, reference] of recentRootReferences.entries()) {
+    if (!isHex(reference.sourceId) || reference.sourceId.length !== 66)
+      throw new Error(
+        `Recent root reference ${index} sourceId must be 32 bytes.`,
+      )
+    if (!isHex(reference.root) || reference.root.length !== 66)
+      throw new Error(`Recent root reference ${index} root must be 32 bytes.`)
+    if (reference.slot < 0n || reference.slot > 0xffff_ffff_ffff_ffffn)
+      throw new Error(
+        `Recent root reference ${index} slot does not fit uint64.`,
+      )
   }
 }
 
