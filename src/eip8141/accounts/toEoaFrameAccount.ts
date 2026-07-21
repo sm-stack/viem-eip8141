@@ -1,10 +1,6 @@
-import type { Address } from 'abitype'
 import type { LocalAccount } from '../../accounts/types.js'
 import type { Hex } from '../../types/misc.js'
-import { concatHex } from '../../utils/data/concat.js'
-import { keccak256 } from '../../utils/hash/keccak256.js'
 import type { FrameAccount, FrameCall } from '../types/account.js'
-import type { Frame } from '../types/frame.js'
 import {
   encodeEoaCalls,
   makeEoaSignaturePlaceholder,
@@ -117,52 +113,7 @@ export function toEoaFrameAccount(
     })
   }
 
-  // ── P256: custom signing logic ─────────────────────────────────
-  const address =
-    `0x${keccak256(concatHex([parameters.publicKey.x, parameters.publicKey.y])).slice(26)}` as Address
-
-  return toFrameAccount({
-    address,
-
-    async signFrameTransaction() {
-      return [
-        {
-          mode: 'verify' as const,
-          flags: scope,
-          target: null,
-          gasLimit: verifyGasLimit,
-          value: 0n,
-          data: '0x',
-        },
-      ] satisfies Frame[]
-    },
-
-    getTransactionSignaturePlaceholders: () => [
-      {
-        scheme: 1,
-        signer: address,
-        msg: '0x',
-        signature: `0x${'00'.repeat(128)}`,
-      },
-    ],
-
-    async signTransactionSignatures({ sigHash }) {
-      const { r, s } = await parameters.sign(sigHash)
-      return [
-        {
-          scheme: 1,
-          signer: address,
-          msg: '0x',
-          signature: concatHex([
-            r,
-            s,
-            parameters.publicKey.x,
-            parameters.publicKey.y,
-          ]),
-        },
-      ]
-    },
-
-    encodeCalls: (calls: FrameCall[]) => encodeEoaCalls(calls, senderGasLimit),
-  })
+  throw new Error(
+    'EIP-8141 default code supports only secp256k1 signatures. Use a deployed smart account for P256.',
+  )
 }

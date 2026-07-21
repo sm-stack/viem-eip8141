@@ -5,6 +5,7 @@ import type { TransactionSerializableFrame } from '../types/transaction.js'
 
 export const frameTransactionBaseGas = 15_000n
 export const frameTransactionPerFrameGas = 475n
+export const arbitrarySignatureGas = 100n
 export const secp256k1SignatureGas = 2_800n
 export const p256SignatureGas = 6_700n
 export const recentRootBaseGas = 2_400n
@@ -23,7 +24,9 @@ export function getFrameTransactionGas(
   ])
   const signatures = transaction.signatures.map((signature) => [
     minimalHex(signature.scheme),
-    signature.signer,
+    signature.signer === '0x0000000000000000000000000000000000000000'
+      ? '0x'
+      : signature.signer,
     signature.msg,
     signature.signature,
   ])
@@ -41,7 +44,12 @@ export function getFrameTransactionGas(
   )
   const signatureGas = transaction.signatures.reduce(
     (gas, signature) =>
-      gas + (signature.scheme === 0 ? secp256k1SignatureGas : p256SignatureGas),
+      gas +
+      (signature.scheme === 0
+        ? arbitrarySignatureGas
+        : signature.scheme === 1
+          ? secp256k1SignatureGas
+          : p256SignatureGas),
     0n,
   )
   const executionGas = transaction.frames.reduce(

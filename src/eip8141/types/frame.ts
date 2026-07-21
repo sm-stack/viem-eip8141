@@ -57,10 +57,10 @@ export type RpcFrame = {
 // Frame Receipt
 // ---------------------------------------------------------------------------
 
-export type FrameReceiptStatus = '0x0' | '0x1' | '0x3'
+export type FrameReceiptStatus = '0x0' | '0x1' | '0x2'
 
 export type FrameReceipt = {
-  /** Frame execution status (0x0=failed, 0x1=successful, 0x3=skipped). */
+  /** Frame execution status (0x0=failed, 0x1=successful, 0x2=skipped). */
   status: FrameReceiptStatus
   /** Gas used by this frame. */
   gasUsed: bigint

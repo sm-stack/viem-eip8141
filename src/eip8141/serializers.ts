@@ -17,6 +17,7 @@ import type {
 import { isFrameTransaction } from './utils/isFrameTransaction.js'
 
 const expiryVerifierAddress = '0x0000000000000000000000000000000000008141'
+const zeroAddress = '0x0000000000000000000000000000000000000000'
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -94,7 +95,7 @@ function encodeFrameTransaction(
 
   const serializedSignatures: Hex[][] = signatures.map((signature) => [
     toMinimalHex(signature.scheme),
-    signature.signer,
+    signature.signer === zeroAddress ? '0x' : signature.signer,
     signature.msg,
     signature.signature,
   ])
@@ -157,9 +158,23 @@ function assertFrameTransaction(
       throw new Error(`Frame ${index} has invalid flags ${frame.flags}.`)
     if (frame.mode !== 'sender' && value !== 0n)
       throw new Error(`Frame ${index} has nonzero value outside SENDER mode.`)
+    if (
+      (flags & 2) !== 0 &&
+      frame.target !== null &&
+      frame.target.toLowerCase() !== sender.toLowerCase()
+    )
+      throw new Error(
+        `Frame ${index} allows execution approval outside sender.`,
+      )
     if ((flags & 4) !== 0 && index === frames.length - 1)
       throw new Error(
         `Frame ${index} has atomic batch flag without a following frame.`,
+      )
+    if ((flags & 4) !== 0 && frame.mode === 'verify')
+      throw new Error(`VERIFY frame ${index} has atomic batch flag.`)
+    if ((flags & 4) !== 0 && frames[index + 1]?.mode === 'verify')
+      throw new Error(
+        `Frame ${index} atomic batch includes VERIFY frame ${index + 1}.`,
       )
     if (frame.gasLimit < 0n || frame.gasLimit > 0xffff_ffff_ffff_ffffn)
       throw new Error(`Frame ${index} gasLimit does not fit uint64.`)
@@ -181,10 +196,19 @@ function assertFrameTransaction(
   for (const [index, signature] of signatures.entries()) {
     if (!isAddress(signature.signer))
       throw new InvalidAddressError({ address: signature.signer })
-    const expectedLength = signature.scheme === 0 ? 65 : 128
-    if (signature.scheme !== 0 && signature.scheme !== 1)
-      throw new Error(`Signature ${index} has unsupported scheme.`)
+    const expectedLength = signature.scheme === 1 ? 65 : 128
     if (
+      signature.scheme !== 0 &&
+      signature.scheme !== 1 &&
+      signature.scheme !== 2
+    )
+      throw new Error(`Signature ${index} has unsupported scheme.`)
+    if (signature.scheme === 0 && signature.signer !== zeroAddress)
+      throw new Error(
+        `Signature ${index} arbitrary scheme must not specify signer.`,
+      )
+    if (
+      signature.scheme !== 0 &&
       !(options.allowEmptySignatures && signature.signature === '0x') &&
       (signature.signature.length - 2) / 2 !== expectedLength
     )

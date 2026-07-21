@@ -27,7 +27,7 @@ export function encodeEoaCalls(calls: FrameCall[], gasLimit: bigint): Frame[] {
  * Uses `account.sign()` — the crypto primitive on LocalAccount.
  *
  * The signature is stored in the transaction-level signatures list as
- * scheme 0 with a 65-byte yParity/r/s payload.
+ * scheme 1 with a 65-byte yParity/r/s payload.
  */
 export async function signEoaTransaction(
   account: LocalAccount,
@@ -37,7 +37,7 @@ export async function signEoaTransaction(
   const sig = parseSignature(serializedSig)
   const v = sig.v ? Number(sig.v) - 27 : sig.yParity
   return {
-    scheme: 0,
+    scheme: 1,
     signer: account.address,
     msg: '0x',
     signature: concatHex([numberToHex(v, { size: 1 }), sig.r, sig.s]),
@@ -47,5 +47,5 @@ export async function signEoaTransaction(
 export function makeEoaSignaturePlaceholder(
   signer: LocalAccount['address'],
 ): TxSignature {
-  return { scheme: 0, signer, msg: '0x', signature: `0x${'00'.repeat(65)}` }
+  return { scheme: 1, signer, msg: '0x', signature: `0x${'00'.repeat(65)}` }
 }

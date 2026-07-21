@@ -6,8 +6,8 @@ import type { Hash } from '../../types/misc.js'
 import { getAction } from '../../utils/getAction.js'
 import { serializeFrameTransaction } from '../serializers.js'
 import {
-  prepareFrameTransaction,
   type PrepareFrameTransactionParameters,
+  prepareFrameTransaction,
 } from './prepareFrameTransaction.js'
 
 // ---------------------------------------------------------------------------
@@ -41,9 +41,7 @@ export type SendFrameTransactionReturnType = Hash
  * })
  * ```
  */
-export async function sendFrameTransaction<
-  chain extends Chain | undefined,
->(
+export async function sendFrameTransaction<chain extends Chain | undefined>(
   client: Client<Transport, chain>,
   parameters: SendFrameTransactionParameters,
 ): Promise<SendFrameTransactionReturnType> {

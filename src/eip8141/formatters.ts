@@ -37,7 +37,7 @@ function formatFrameReceipt(rpcFr: RpcFrameReceipt): FrameReceipt {
   if (
     rpcFr.status !== '0x0' &&
     rpcFr.status !== '0x1' &&
-    rpcFr.status !== '0x3'
+    rpcFr.status !== '0x2'
   )
     throw new Error(`Invalid frame receipt status ${rpcFr.status}.`)
   return {
@@ -62,7 +62,7 @@ export const formatters = {
         transaction.frames = args.frames?.map(formatFrame) ?? []
         transaction.signatures =
           args.signatures?.map((signature) => ({
-            scheme: hexToNumber(signature.scheme) as 0 | 1,
+            scheme: hexToNumber(signature.scheme) as 0 | 1 | 2,
             signer: signature.signer,
             msg: signature.msg,
             signature: signature.signature,

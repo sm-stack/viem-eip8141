@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { describe, expect, test } from 'vitest'
 import { privateKeyToAccount } from '../accounts/privateKeyToAccount.js'
 import { parseTransaction } from './parsers.js'
 import { serializeFrameTransaction } from './serializers.js'
@@ -11,13 +11,18 @@ import { makeExpiryFrame, withAtomicBatch } from './utils/frames.js'
 import { getFrameTransactionGas } from './utils/gas.js'
 
 const workspaceVectorPath = fileURLToPath(
-  new URL('../../../.context/test-vectors/frame-transaction-v1.json', import.meta.url),
+  new URL(
+    '../../../.context/test-vectors/frame-transaction-v1.json',
+    import.meta.url,
+  ),
 )
 const vectorPath =
   process.env.EIP8141_VECTOR_PATH ??
   (existsSync(workspaceVectorPath)
     ? workspaceVectorPath
-    : fileURLToPath(new URL('./testdata/frame-transaction-v1.json', import.meta.url)))
+    : fileURLToPath(
+        new URL('./testdata/frame-transaction-v1.json', import.meta.url),
+      ))
 const stored = JSON.parse(readFileSync(vectorPath, 'utf8'))
 const transaction = {
   ...stored.transaction,
@@ -59,7 +64,9 @@ describe('EIP-8141 frame transaction', () => {
   })
 
   test('charges the canonical fixed, calldata, signature, and frame gas', () => {
-    expect(getFrameTransactionGas(transaction)).toBe(BigInt(stored.intrinsicGas))
+    expect(getFrameTransactionGas(transaction)).toBe(
+      BigInt(stored.intrinsicGas),
+    )
   })
 
   test('builds canonical expiry and atomic batch frames', () => {
@@ -137,6 +144,59 @@ describe('EIP-8141 frame transaction', () => {
         ],
       }),
     ).toThrow('explicit zero')
+  })
+
+  test('rejects VERIFY frames in atomic batches', () => {
+    expect(() =>
+      serializeFrameTransaction({
+        ...transaction,
+        frames: [
+          { ...transaction.frames[0]!, flags: 4 },
+          transaction.frames[1]!,
+        ],
+      }),
+    ).toThrow('VERIFY frame 0 has atomic batch flag')
+
+    expect(() =>
+      serializeFrameTransaction({
+        ...transaction,
+        frames: [
+          { ...transaction.frames[1]!, flags: 4 },
+          transaction.frames[0]!,
+        ],
+      }),
+    ).toThrow('atomic batch includes VERIFY frame 1')
+  })
+
+  test('rejects execution approval from a third-party target', () => {
+    expect(() =>
+      serializeFrameTransaction({
+        ...transaction,
+        frames: [
+          {
+            ...transaction.frames[0]!,
+            flags: 2,
+            target: '0x9999999999999999999999999999999999999999',
+          },
+        ],
+      }),
+    ).toThrow('execution approval outside sender')
+  })
+
+  test('round trips arbitrary signature witness bytes with an omitted signer', () => {
+    const arbitrary = {
+      ...transaction,
+      signatures: [
+        {
+          scheme: 0 as const,
+          signer: '0x0000000000000000000000000000000000000000',
+          msg: '0x',
+          signature: '0x0102030405',
+        },
+      ],
+    }
+    const parsed = parseTransaction(serializeFrameTransaction(arbitrary))
+    expect(parsed.signatures).toEqual(arbitrary.signatures)
   })
 
   test('rejects invalid recent-root reference metadata', () => {

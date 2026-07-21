@@ -121,8 +121,10 @@ function parseFrameTransaction(
       })
     const [scheme, signer, msg, signature] = rawSignature
     return {
-      scheme: minimalHexToNumber(scheme) as 0 | 1,
-      signer: signer as Address,
+      scheme: minimalHexToNumber(scheme) as 0 | 1 | 2,
+      signer: (signer === '0x'
+        ? '0x0000000000000000000000000000000000000000'
+        : signer) as Address,
       msg,
       signature,
     }

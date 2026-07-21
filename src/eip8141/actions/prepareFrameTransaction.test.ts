@@ -46,7 +46,7 @@ describe('prepareFrameTransaction', () => {
     ])
     expect(transaction.signatures).toHaveLength(1)
     expect(transaction.signatures[0]).toMatchObject({
-      scheme: 0,
+      scheme: 1,
       signer: owner.address,
       msg: '0x',
     })
@@ -94,23 +94,17 @@ describe('prepareFrameTransaction', () => {
     expect(transaction.signatures[0]?.signer).toBe(owner.address)
   })
 
-  test('supports explicit P256 transaction signatures', async () => {
-    const account = toEoaFrameAccount({
-      signatureType: 'p256',
-      publicKey: { x: `0x${'11'.repeat(32)}`, y: `0x${'22'.repeat(32)}` },
-      sign: async () => ({
-        r: `0x${'33'.repeat(32)}`,
-        s: `0x${'44'.repeat(32)}`,
+  test('rejects P256 for protocol default-code accounts', () => {
+    expect(() =>
+      toEoaFrameAccount({
+        signatureType: 'p256',
+        publicKey: { x: `0x${'11'.repeat(32)}`, y: `0x${'22'.repeat(32)}` },
+        sign: async () => ({
+          r: `0x${'33'.repeat(32)}`,
+          s: `0x${'44'.repeat(32)}`,
+        }),
       }),
-    })
-    const transaction = await prepareFrameTransaction({} as never, {
-      ...common,
-      account,
-      calls: [{ to: '0x2222222222222222222222222222222222222222' }],
-    })
-
-    expect(transaction.signatures[0]).toMatchObject({ scheme: 1, msg: '0x' })
-    expect(transaction.signatures[0]?.signature).toHaveLength(2 + 128 * 2)
+    ).toThrow('default code supports only secp256k1')
   })
 
   test('signs account and paymaster placeholders over the same sigHash', async () => {
@@ -131,7 +125,7 @@ describe('prepareFrameTransaction', () => {
         }),
         getTransactionSignaturePlaceholders: () => [
           {
-            scheme: 0,
+            scheme: 1,
             signer: paymasterSigner.address,
             msg: '0x',
             signature: `0x${'00'.repeat(65)}`,

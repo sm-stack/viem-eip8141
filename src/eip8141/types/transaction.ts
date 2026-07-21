@@ -18,7 +18,7 @@ import type { OneOf } from '../../types/utils.js'
 import type { Frame, FrameReceipt, RpcFrame, RpcFrameReceipt } from './frame.js'
 
 export type TxSignature = {
-  scheme: 0 | 1
+  scheme: 0 | 1 | 2
   signer: Address
   msg: Hex
   signature: Hex

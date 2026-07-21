@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-
+import { sha256 } from '../hash/sha256.js'
 import {
   boolToBytes,
   hexToBytes,
@@ -198,31 +198,40 @@ describe('prefix === 0xb9', () => {
     expect(bytesToRlp(generateBytes(256))).toEqual(
       Uint8Array.from([185, 1, 0, ...generateBytes(256)]),
     )
-    expect(bytesToRlp(generateBytes(65_535))).toEqual(
-      Uint8Array.from([185, 255, 255, ...generateBytes(65_535)]),
+    const encoded = bytesToRlp(generateBytes(65_535))
+    expect(encoded.length).toBe(65_538)
+    expect(bytesToHex(encoded.slice(0, 3))).toBe('0xb9ffff')
+    expect(sha256(encoded)).toBe(
+      '0x5da7a5f0839239cdf6abf35ecce88deb7fc92a66e553d19235652f9a3fa8bf2f',
     )
   })
 })
 
 describe('prefix === 0xba', () => {
   test('bytes -> bytes', () => {
-    const bytes_1 = generateBytes(65_536)
-    expect(bytesToRlp(bytes_1)).toEqual(
-      Uint8Array.from([186, 1, 0, 0, ...bytes_1]),
+    const encoded_1 = bytesToRlp(generateBytes(65_536))
+    expect(encoded_1.length).toBe(65_540)
+    expect(bytesToHex(encoded_1.slice(0, 4))).toBe('0xba010000')
+    expect(sha256(encoded_1)).toBe(
+      '0x6f4d49a0c5a4303b091aed635042b139ce53f951ff77b775648a937495f431c3',
     )
 
-    const bytes_2 = generateBytes(16_777_215)
-    expect(bytesToRlp(bytes_2)).toEqual(
-      Uint8Array.from([186, 255, 255, 255, ...bytes_2]),
+    const encoded_2 = bytesToRlp(generateBytes(16_777_215))
+    expect(encoded_2.length).toBe(16_777_219)
+    expect(bytesToHex(encoded_2.slice(0, 4))).toBe('0xbaffffff')
+    expect(sha256(encoded_2)).toBe(
+      '0x0d5dea8eeae77882f40063db01d20f70563459c3dd1f7a577f5a261d7af7f059',
     )
   })
 })
 
 describe('prefix === 0xbb', () => {
   test('bytes -> bytes', () => {
-    const bytes_1 = generateBytes(16_777_216)
-    expect(bytesToRlp(bytes_1)).toEqual(
-      Uint8Array.from([187, 1, 0, 0, 0, ...bytes_1]),
+    const encoded = bytesToRlp(generateBytes(16_777_216))
+    expect(encoded.length).toBe(16_777_221)
+    expect(bytesToHex(encoded.slice(0, 5))).toBe('0xbb01000000')
+    expect(sha256(encoded)).toBe(
+      '0xe4414ff4830ff44a5d05dcbd87721b8c4bed1c17503d088af572e4aa37a99751',
     )
   })
 })
@@ -392,15 +401,20 @@ describe('list', () => {
     expect(bytesToHex(bytesToRlp(generateList(61)))).toMatchInlineSnapshot(
       '"0xf9010380008200018300010284000102038500010203048600010203040587000102030405068000820001830001028400010203850001020304860001020304058700010203040506800082000183000102840001020385000102030486000102030405870001020304050680008200018300010284000102038500010203048600010203040587000102030405068000820001830001028400010203850001020304860001020304058700010203040506800082000183000102840001020385000102030486000102030405870001020304050680008200018300010284000102038500010203048600010203040587000102030405068000820001830001028400010203"',
     )
-    expect(bytesToHex(bytesToRlp(generateList(12_000)))).toMatchSnapshot()
+    const encoded = bytesToRlp([generateBytes(1_024)])
+    expect(encoded.length).toBe(1_030)
+    expect(bytesToHex(encoded.slice(0, 6))).toBe('0xf90403b90400')
+    expect(sha256(encoded)).toBe(
+      '0x43953ee59939645e5fcfa3648bcabafdce482a2dd3d75a7f44183d97301db106',
+    )
   })
 
   test('prefix === 0xfa', () => {
-    expect(bytesToHex(bytesToRlp(generateList(60_000)))).toMatchSnapshot()
-  })
-
-  // This test works, but it's really slow (understandably).
-  test.skip('prefix === 0xfb', () => {
-    expect(bytesToHex(bytesToRlp(generateList(10_000_000)))).toMatchSnapshot()
+    const encoded = bytesToRlp([generateBytes(65_536)])
+    expect(encoded.length).toBe(65_544)
+    expect(bytesToHex(encoded.slice(0, 7))).toBe('0xfa010004ba0100')
+    expect(sha256(encoded)).toBe(
+      '0x7976c9347931a238b518a241953034d7839e5fc93bfa9d52caf793244f9d834e',
+    )
   })
 })
