@@ -32,8 +32,13 @@ export type Frame = {
   flags?: number | undefined
   /** Call target address. `null` means the frame targets `tx.sender`. */
   target: Address | null
-  /** Gas limit allocated to this frame. */
+  /** Execution gas limit allocated to this frame. */
   gasLimit: bigint
+  /**
+   * State gas limit allocated to this frame (EIP-8037 state growth).
+   * Defaults to `0n` when omitted.
+   */
+  stateGasLimit?: bigint | undefined
   /** Native value transferred by a SENDER frame. */
   value?: bigint | undefined
   /** Calldata for the frame. */
@@ -49,6 +54,7 @@ export type RpcFrame = {
   flags: Hex
   target: Address | Hex
   gasLimit: Hex
+  stateGasLimit: Hex
   value: Hex
   data: Hex
 }
@@ -59,17 +65,30 @@ export type RpcFrame = {
 
 export type FrameReceiptStatus = '0x0' | '0x1' | '0x2'
 
+/** Two-dimensional gas usage of a frame. */
+export type FrameGasUsed = {
+  /** Execution gas consumed by the frame. */
+  execution: bigint
+  /** State gas consumed by the frame. */
+  state: bigint
+}
+
+export type RpcFrameGasUsed = {
+  execution: Hex
+  state: Hex
+}
+
 export type FrameReceipt = {
   /** Frame execution status (0x0=failed, 0x1=successful, 0x2=skipped). */
   status: FrameReceiptStatus
   /** Gas used by this frame. */
-  gasUsed: bigint
+  gasUsed: FrameGasUsed
   /** Logs emitted during this frame. */
   logs: Log[]
 }
 
 export type RpcFrameReceipt = {
   status: FrameReceiptStatus
-  gasUsed: Hex
+  gasUsed: RpcFrameGasUsed
   logs: RpcLog[]
 }

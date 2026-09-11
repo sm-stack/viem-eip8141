@@ -48,10 +48,12 @@ export const serializers = {
 /**
  * Serializes an EIP-8141 frame transaction to its RLP-encoded form.
  *
- * Format: `0x06 || rlp([chainId, nonceKeys, nonceSeq, sender, frames, signatures, maxPriorityFeePerGas,
- *          maxFeePerGas, maxFeePerBlobGas, blobVersionedHashes, recentRootReferences])`
+ * Format: `0x06 || rlp([chainId, nonceKeys, nonceSeq, sender, frames, signatures,
+ *          [maxPriorityFeePerGas, maxFeePerGas, maxFeePerBlobGas],
+ *          blobVersionedHashes, recentRootReferences])`
  *
- * Each frame is encoded as: `[mode, flags, target, gasLimit, value, data]`
+ * Each frame is encoded as:
+ * `[mode, flags, target, [gasLimit, stateGasLimit], value, data]`
  */
 export function serializeFrameTransaction(
   transaction: TransactionSerializableFrame,
@@ -84,11 +86,11 @@ function encodeFrameTransaction(
   } = transaction
   const { nonceKeys, nonceSeq } = normalizeNonce(transaction)
 
-  const serializedFrames: Hex[][] = frames.map((frame) => [
+  const serializedFrames: (Hex | Hex[])[][] = frames.map((frame) => [
     toMinimalHex(frameModeToNumber[frame.mode]),
     toMinimalHex(frame.flags ?? 0),
     frame.target ?? '0x',
-    toMinimalHex(frame.gasLimit),
+    [toMinimalHex(frame.gasLimit), toMinimalHex(frame.stateGasLimit ?? 0n)],
     toMinimalHex(frame.value ?? 0n),
     frame.data,
   ])
@@ -107,16 +109,23 @@ function encodeFrameTransaction(
     ],
   )
 
-  const serializedTransaction: (Hex | Hex[] | Hex[][])[] = [
+  const serializedTransaction: (
+    | Hex
+    | Hex[]
+    | Hex[][]
+    | (Hex | Hex[])[][]
+  )[] = [
     toMinimalHex(chainId),
     nonceKeys.map(toMinimalHex),
     toMinimalHex(nonceSeq),
     sender,
     serializedFrames,
     serializedSignatures,
-    toMinimalHex(maxPriorityFeePerGas ?? 0),
-    toMinimalHex(maxFeePerGas ?? 0),
-    toMinimalHex(maxFeePerBlobGas ?? 0),
+    [
+      toMinimalHex(maxPriorityFeePerGas ?? 0),
+      toMinimalHex(maxFeePerGas ?? 0),
+      toMinimalHex(maxFeePerBlobGas ?? 0),
+    ],
     blobVersionedHashes ?? [],
     serializedRecentRootReferences,
   ]
@@ -178,6 +187,9 @@ function assertFrameTransaction(
       )
     if (frame.gasLimit < 0n || frame.gasLimit > 0xffff_ffff_ffff_ffffn)
       throw new Error(`Frame ${index} gasLimit does not fit uint64.`)
+    const stateGasLimit = frame.stateGasLimit ?? 0n
+    if (stateGasLimit < 0n || stateGasLimit > 0xffff_ffff_ffff_ffffn)
+      throw new Error(`Frame ${index} stateGasLimit does not fit uint64.`)
     if (value < 0n || value > (1n << 256n) - 1n)
       throw new Error(`Frame ${index} value does not fit uint256.`)
     const resolvedTarget = (frame.target ?? sender).toLowerCase()
@@ -187,7 +199,12 @@ function assertFrameTransaction(
         throw new Error(
           'Frame transaction has multiple expiry verifier frames.',
         )
-      if (flags !== 0 || value !== 0n || frame.data.length !== 18)
+      if (
+        flags !== 0 ||
+        value !== 0n ||
+        stateGasLimit !== 0n ||
+        frame.data.length !== 18
+      )
         throw new Error(
           `Frame ${index} has an invalid expiry verifier payload.`,
         )

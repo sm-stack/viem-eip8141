@@ -46,7 +46,7 @@ function parseFrameTransaction(
   const payload = `0x${serializedTransaction.slice(4)}` as Hex
   const transactionArray = fromRlp(payload, 'hex')
 
-  if (!Array.isArray(transactionArray) || transactionArray.length !== 11)
+  if (!Array.isArray(transactionArray) || transactionArray.length !== 9)
     throw new InvalidSerializedTransactionError({
       attributes: {},
       serializedTransaction,
@@ -60,9 +60,7 @@ function parseFrameTransaction(
     sender,
     rawFrames,
     rawSignatures,
-    maxPriorityFeePerGas,
-    maxFeePerGas,
-    maxFeePerBlobGas,
+    rawFees,
     blobVersionedHashes,
     rawRecentRootReferences,
   ] = transactionArray as [
@@ -70,31 +68,48 @@ function parseFrameTransaction(
     Hex[],
     Hex,
     Hex,
+    (Hex | Hex[])[][],
     Hex[][],
-    Hex[][],
-    Hex,
-    Hex,
-    Hex,
+    Hex[],
     Hex[],
     Hex[][],
   ]
 
+  if (!Array.isArray(rawFees) || rawFees.length !== 3)
+    throw new InvalidSerializedTransactionError({
+      attributes: {},
+      serializedTransaction,
+      type: 'frame',
+    })
+  const [maxPriorityFeePerGas, maxFeePerGas, maxFeePerBlobGas] = rawFees as [
+    Hex,
+    Hex,
+    Hex,
+  ]
+
   // Parse frames
-  const frames: Frame[] = (rawFrames as unknown as Hex[][]).map((rawFrame) => {
+  const frames: Frame[] = rawFrames.map((rawFrame) => {
     if (!Array.isArray(rawFrame) || rawFrame.length !== 6)
       throw new InvalidSerializedTransactionError({
         attributes: {},
         serializedTransaction,
         type: 'frame',
       })
-    const [mode, flags, target, gasLimit, value, data] = rawFrame as [
+    const [mode, flags, target, gasLimits, value, data] = rawFrame as [
       Hex,
       Hex,
       Hex,
-      Hex,
+      Hex[],
       Hex,
       Hex,
     ]
+    if (!Array.isArray(gasLimits) || gasLimits.length !== 2)
+      throw new InvalidSerializedTransactionError({
+        attributes: {},
+        serializedTransaction,
+        type: 'frame',
+      })
+    const [gasLimit, stateGasLimit] = gasLimits as [Hex, Hex]
     const modeNum = minimalHexToNumber(mode)
     if (modeNum > 2)
       throw new InvalidSerializedTransactionError({
@@ -106,8 +121,9 @@ function parseFrameTransaction(
       mode: numberToFrameMode[modeNum as 0 | 1 | 2] ?? 'default',
       flags: minimalHexToNumber(flags),
       target: (target && target !== '0x' ? target : null) as Address | null,
-      gasLimit: gasLimit === '0x' ? 0n : hexToBigInt(gasLimit),
-      value: value === '0x' ? 0n : hexToBigInt(value),
+      gasLimit: minimalHexToBigInt(gasLimit),
+      stateGasLimit: minimalHexToBigInt(stateGasLimit),
+      value: minimalHexToBigInt(value),
       data: data || '0x',
     } satisfies Frame
   })

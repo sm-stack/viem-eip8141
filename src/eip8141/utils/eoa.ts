@@ -7,15 +7,25 @@ import type { FrameCall } from '../types/account.js'
 import type { Frame } from '../types/frame.js'
 import type { TxSignature } from '../types/transaction.js'
 
+/** Default state gas limit for VERIFY frames (covers one new storage slot). */
+export const defaultVerifyStateGasLimit = 100_000n
+/** Default state gas limit for SENDER frames. */
+export const defaultSenderStateGasLimit = 500_000n
+
 /**
  * EOA calls map directly to SENDER frames.
  */
-export function encodeEoaCalls(calls: FrameCall[], gasLimit: bigint): Frame[] {
+export function encodeEoaCalls(
+  calls: FrameCall[],
+  gasLimit: bigint,
+  stateGasLimit = defaultSenderStateGasLimit,
+): Frame[] {
   return calls.map((call) => ({
     mode: 'sender' as const,
     flags: 0,
     target: call.to,
     gasLimit,
+    stateGasLimit,
     value: call.value ?? 0n,
     data: call.data ?? '0x',
   }))

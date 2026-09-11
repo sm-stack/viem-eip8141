@@ -12,6 +12,7 @@ export function makeExpiryFrame(deadline: bigint, gasLimit = 100_000n): Frame {
     flags: 0,
     target: frameExpiryVerifierAddress,
     gasLimit,
+    stateGasLimit: 0n,
     value: 0n,
     data: `0x${deadline.toString(16).padStart(16, '0')}`,
   }

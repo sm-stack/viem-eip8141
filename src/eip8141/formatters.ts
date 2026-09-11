@@ -28,6 +28,7 @@ function formatFrame(rpcFrame: RpcFrame): Frame {
     flags: hexToNumber(rpcFrame.flags),
     target: rpcFrame.target === '0x' ? null : rpcFrame.target,
     gasLimit: hexToBigInt(rpcFrame.gasLimit),
+    stateGasLimit: hexToBigInt(rpcFrame.stateGasLimit ?? '0x0'),
     value: hexToBigInt(rpcFrame.value),
     data: rpcFrame.data,
   } as Frame
@@ -42,7 +43,10 @@ function formatFrameReceipt(rpcFr: RpcFrameReceipt): FrameReceipt {
     throw new Error(`Invalid frame receipt status ${rpcFr.status}.`)
   return {
     status: rpcFr.status,
-    gasUsed: hexToBigInt(rpcFr.gasUsed),
+    gasUsed: {
+      execution: hexToBigInt(rpcFr.gasUsed.execution),
+      state: hexToBigInt(rpcFr.gasUsed.state),
+    },
     logs: rpcFr.logs?.map((log) => formatLog(log)) ?? [],
   }
 }

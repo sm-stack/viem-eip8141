@@ -2,6 +2,8 @@ import type { LocalAccount } from '../../accounts/types.js'
 import type { Hex } from '../../types/misc.js'
 import type { FrameAccount, FrameCall } from '../types/account.js'
 import {
+  defaultSenderStateGasLimit,
+  defaultVerifyStateGasLimit,
   encodeEoaCalls,
   makeEoaSignaturePlaceholder,
   signEoaTransaction,
@@ -18,6 +20,12 @@ export type ToEoaFrameAccountParameters = {
 
   /** Gas limit for the SENDER frame (batched calls). @default 200_000n */
   senderGasLimit?: bigint | undefined
+
+  /** State gas limit for the VERIFY frame. @default 100_000n */
+  verifyStateGasLimit?: bigint | undefined
+
+  /** State gas limit for the SENDER frame. @default 500_000n */
+  senderStateGasLimit?: bigint | undefined
 
   /**
    * Validation scope:
@@ -83,6 +91,8 @@ export function toEoaFrameAccount(
   const {
     verifyGasLimit = 90_000n,
     senderGasLimit = 200_000n,
+    verifyStateGasLimit = defaultVerifyStateGasLimit,
+    senderStateGasLimit = defaultSenderStateGasLimit,
     scope = 3,
   } = parameters
 
@@ -98,6 +108,7 @@ export function toEoaFrameAccount(
           flags: scope,
           target: null,
           gasLimit: verifyGasLimit,
+          stateGasLimit: verifyStateGasLimit,
           value: 0n,
           data: '0x',
         },
@@ -109,7 +120,7 @@ export function toEoaFrameAccount(
         await signEoaTransaction(parameters.owner, sigHash),
       ],
       encodeCalls: (calls: FrameCall[]) =>
-        encodeEoaCalls(calls, senderGasLimit),
+        encodeEoaCalls(calls, senderGasLimit, senderStateGasLimit),
     })
   }
 

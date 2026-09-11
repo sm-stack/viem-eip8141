@@ -4,6 +4,8 @@ import { encodeFunctionData } from '../../utils/abi/encodeFunctionData.js'
 import type { FrameAccount, FrameCall } from '../types/account.js'
 import type { Frame } from '../types/frame.js'
 import {
+  defaultSenderStateGasLimit,
+  defaultVerifyStateGasLimit,
   makeEoaSignaturePlaceholder,
   signEoaTransaction,
 } from '../utils/eoa.js'
@@ -54,6 +56,12 @@ export type ToSimple8141AccountParameters = {
   /** Gas limit for each SENDER frame (execute call). @default 100_000n */
   senderGasLimit?: bigint | undefined
 
+  /** State gas limit for the VERIFY frame. @default 100_000n */
+  verifyStateGasLimit?: bigint | undefined
+
+  /** State gas limit for each SENDER frame. @default 500_000n */
+  senderStateGasLimit?: bigint | undefined
+
   /**
    * Validation scope:
    * - `1` = PAYMENT only
@@ -94,6 +102,8 @@ export function toSimple8141Account(
     owner,
     verifyGasLimit = 90_000n,
     senderGasLimit = 100_000n,
+    verifyStateGasLimit = defaultVerifyStateGasLimit,
+    senderStateGasLimit = defaultSenderStateGasLimit,
     scope = 3,
   } = parameters
 
@@ -114,6 +124,7 @@ export function toSimple8141Account(
           flags: scope,
           target: null,
           gasLimit: verifyGasLimit,
+          stateGasLimit: verifyStateGasLimit,
           value: 0n,
           data,
         },
@@ -141,6 +152,7 @@ export function toSimple8141Account(
             flags: 0,
             target: null,
             gasLimit: senderGasLimit,
+            stateGasLimit: senderStateGasLimit,
             value: call.value,
             data,
           } satisfies Frame
@@ -151,6 +163,7 @@ export function toSimple8141Account(
           flags: 0,
           target: call.to,
           gasLimit: senderGasLimit,
+          stateGasLimit: senderStateGasLimit,
           value: 0n,
           data: call.data ?? '0x',
         } satisfies Frame

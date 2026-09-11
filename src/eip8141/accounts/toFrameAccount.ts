@@ -3,6 +3,7 @@ import type { Hex } from '../../types/misc.js'
 import type { FrameAccount, FrameCall } from '../types/account.js'
 import type { Frame } from '../types/frame.js'
 import type { TxSignature } from '../types/transaction.js'
+import { defaultSenderStateGasLimit } from '../utils/eoa.js'
 
 export type ToFrameAccountParameters = {
   /** Deployed account address. */
@@ -86,6 +87,7 @@ function defaultEncodeCalls(calls: FrameCall[]): Frame[] {
     flags: 0,
     target: call.to,
     gasLimit: 100_000n,
+    stateGasLimit: defaultSenderStateGasLimit,
     value: call.value ?? 0n,
     data: call.data ?? '0x',
   }))

@@ -8,7 +8,10 @@ import type { TransactionSerializableFrame } from './types/transaction.js'
 import { computeSigHash } from './utils/computeSigHash.js'
 import { makeEoaSignaturePlaceholder, signEoaTransaction } from './utils/eoa.js'
 import { makeExpiryFrame, withAtomicBatch } from './utils/frames.js'
-import { getFrameTransactionGas } from './utils/gas.js'
+import {
+  getFrameTransactionGas,
+  getFrameTransactionIntrinsicGas,
+} from './utils/gas.js'
 
 const workspaceVectorPath = fileURLToPath(
   new URL(
@@ -32,6 +35,7 @@ const transaction = {
   frames: stored.transaction.frames.map((frame: any) => ({
     ...frame,
     gasLimit: BigInt(frame.gasLimit),
+    stateGasLimit: BigInt(frame.stateGasLimit),
     value: BigInt(frame.value),
   })),
   maxPriorityFeePerGas: BigInt(stored.transaction.maxPriorityFeePerGas),
@@ -49,7 +53,7 @@ describe('EIP-8141 frame transaction', () => {
     expect(computeSigHash(transaction)).toBe(stored.sigHash)
   })
 
-  test('round trips the 11-field transaction and 6-field frames', () => {
+  test('round trips the 9-field transaction and two-dimensional frame gas', () => {
     expect(parseTransaction(rawTransaction)).toEqual({
       ...transaction,
       maxFeePerBlobGas: undefined,
@@ -63,15 +67,35 @@ describe('EIP-8141 frame transaction', () => {
     )
   })
 
-  test('charges the canonical fixed, calldata, signature, and frame gas', () => {
-    expect(getFrameTransactionGas(transaction)).toBe(
+  test('charges the canonical fixed, calldata, and signature intrinsic gas', () => {
+    expect(getFrameTransactionIntrinsicGas(transaction)).toBe(
       BigInt(stored.intrinsicGas),
     )
+    const executionGas = transaction.frames.reduce(
+      (gas, frame) => gas + frame.gasLimit,
+      0n,
+    )
+    const stateGas = transaction.frames.reduce(
+      (gas, frame) => gas + (frame.stateGasLimit ?? 0n),
+      0n,
+    )
+    expect(getFrameTransactionGas(transaction)).toBe(
+      BigInt(stored.intrinsicGas) + executionGas + stateGas,
+    )
+  })
+
+  test('rejects the flat-fee 11-field legacy wire format', () => {
+    expect(() =>
+      parseTransaction(
+        '0x06f901ed01c18007941111111111111111111111111111111111111111f84cca01038082c3508082aabbe202049422222222222222222222222222222222222222228301117082303983ccddeedd8080942222222222222222222222222222222222222222827530808199f90117f85a0194333333333333333333333333333333333333333380b8410011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222f8b902944444444444444444444444444444444444444444a0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab880bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee036480e1a00102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20f845f843a0010101010101010101010101010101010101010101010101010101010101010109a00202020202020202020202020202020202020202020202020202020202020202',
+      ),
+    ).toThrow()
   })
 
   test('builds canonical expiry and atomic batch frames', () => {
     const expiry = makeExpiryFrame(0x0102_0304_0506_0708n, 50_000n)
     expect(expiry.data).toBe('0x0102030405060708')
+    expect(expiry.stateGasLimit).toBe(0n)
     const batch = withAtomicBatch([
       transaction.frames[1]!,
       transaction.frames[2]!,
@@ -235,6 +259,7 @@ describe('EIP-8141 frame transaction', () => {
           flags: 0,
           target: transaction.frames[2]!.target,
           gasLimit: 0n,
+          stateGasLimit: 0n,
           value: 0n,
           data: '0x' as const,
         },

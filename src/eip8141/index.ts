@@ -74,10 +74,12 @@ export type {
 } from './types/account.js'
 export type {
   Frame,
+  FrameGasUsed,
   FrameMode as FrameModeType,
   FrameReceipt,
   FrameReceiptStatus,
   RpcFrame,
+  RpcFrameGasUsed,
   RpcFrameReceipt,
 } from './types/frame.js'
 export type {
@@ -98,6 +100,8 @@ export type {
 // ── Utils ────────────────────────────────────────────────────────────────────
 export { computeSigHash } from './utils/computeSigHash.js'
 export {
+  defaultSenderStateGasLimit,
+  defaultVerifyStateGasLimit,
   encodeEoaCalls,
   makeEoaSignaturePlaceholder,
   signEoaTransaction,
@@ -109,13 +113,22 @@ export {
   withAtomicBatch,
 } from './utils/frames.js'
 export {
+  arbitrarySignatureGas,
+  calldataFloorGasPerToken,
+  calldataGasPerToken,
+  calldataTokenPerNonZeroByte,
   frameTransactionBaseGas,
   frameTransactionPerFrameGas,
+  getFrameTransactionCalldataGas,
+  getFrameTransactionFixedGas,
+  getFrameTransactionFloorDataGas,
   getFrameTransactionGas,
+  getFrameTransactionIntrinsicGas,
   p256SignatureGas,
   recentRootBaseGas,
   recentRootPerReferenceGas,
   secp256k1SignatureGas,
+  valueTransferGas,
 } from './utils/gas.js'
 export { isFrameTransaction } from './utils/isFrameTransaction.js'
 export {

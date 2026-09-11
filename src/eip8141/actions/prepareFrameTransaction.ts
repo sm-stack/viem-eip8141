@@ -20,6 +20,8 @@ import type {
 } from '../types/transaction.js'
 import { computeSigHash } from '../utils/computeSigHash.js'
 import {
+  defaultSenderStateGasLimit,
+  defaultVerifyStateGasLimit,
   encodeEoaCalls,
   makeEoaSignaturePlaceholder,
   signEoaTransaction,
@@ -54,6 +56,10 @@ export type PrepareFrameTransactionParameters = {
   verifyGasLimit?: bigint | undefined
   /** SENDER frame gas limit. @default 200_000n */
   senderGasLimit?: bigint | undefined
+  /** VERIFY frame state gas limit. @default 100_000n */
+  verifyStateGasLimit?: bigint | undefined
+  /** SENDER frame state gas limit. @default 500_000n */
+  senderStateGasLimit?: bigint | undefined
 }
 
 export type PrepareFrameTransactionReturnType = TransactionSerializableFrame
@@ -155,14 +161,17 @@ export async function prepareFrameTransaction<chain extends Chain | undefined>(
         scope = paymaster ? 2 : 3,
         verifyGasLimit = paymaster ? 40_000n : 90_000n,
         senderGasLimit = 200_000n,
+        verifyStateGasLimit = defaultVerifyStateGasLimit,
+        senderStateGasLimit = defaultSenderStateGasLimit,
       } = parameters
-      senderFrames = encodeEoaCalls(calls, senderGasLimit)
+      senderFrames = encodeEoaCalls(calls, senderGasLimit, senderStateGasLimit)
       accountVerifyFrames = [
         {
           mode: 'verify',
           flags: scope,
           target: null,
           gasLimit: verifyGasLimit,
+          stateGasLimit: verifyStateGasLimit,
           value: 0n,
           data: '0x',
         },
